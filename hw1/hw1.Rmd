@@ -79,7 +79,7 @@ for (n in N){
 data.frame(N,est_results,known_results)
 ```
 
-For each N, the CIs have better coverage when using the actual distribution variance. This generally stays the same across values of N and different runs.  
+For each N, the CIs have better coverage when using the actual variance than the estimated. This generally stays the same across values of N and different runs.  
 
 ## Lecture 2 HW
 
@@ -107,7 +107,7 @@ stargazer(lm(Y ~ ., data = data.frame(D)),type='text',digits=3,
 
 We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 8.5% when being offered a cash bonus for finding a job. 
 
-To interpret the coefficient as the causal effect of being offered a cash bonus for finding a job on initial unemployment duration, we would need to assume that the treatment was completely random, specifically that being offered the cash bonus (treatment) is independent of all other determinants of the duration of an individual's first spell of unemployment. 
+To interpret the coefficient as the causal effect of being offered a cash bonus for finding a job on initial unemployment duration, we would need to assume that the treatment was completely random, specifically that being offered the cash bonus (treatment) is independent of all other determinants of the duration of an individual's first spell of unemployment, formally $E[DU]=0$. 
 
 #### (4)
 
@@ -116,10 +116,11 @@ stargazer(lm(Y ~ .,data=cbind(D,W)),type='text',digits=3,
           title='Model Estimates with Controls for sex, race, and age')
 ```
 
-We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 8.0% when being offered a cash bonus for finding a job, holding gender, race, and age fixed. **other coef?**
+We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 8.0% when being offered a cash bonus for finding a job, holding gender, race, and age fixed. 
 
-To interpret the coefficient as the causal effect of being offered a cash bonus for finding a job on initial unemployment duration, we would need to assume that the treatment was completely random, specifically that being offered the cash bonus (treatment) is independent of all other determinants of the duration of an individual's first spell of unemployment. **change to SO**
+If we do not believe that the treatment D is independent of all other variables, a highly plausible scenario given differential unemployment between groups of different race, gender, and age, we need different assumptions to interpret $\hat{\beta}_1$ as causal. Specifically, we could assume that the above factors are the only determinants of unemployment duration (a slightly more plausible assumption than random assignment) and control for them in a regression. If we believe our assumption holds (that D is independent of U|W where U is our error term including unobservables and W are our controls), we can make a causal interpretation of our coefficient via Selection on Observables. 
 
+The magnitude and significance level of the coefficient does not change much from the regression in the previous part, hence leading us to believe that the program was successful in reducing the length of unemployment. 
 
 #### (5)
 
@@ -130,11 +131,19 @@ stargazer(lm(Y ~ D*(.), data=cbind(D,W)),type='text',digits=3,
 
 We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 16.3% when being offered a cash bonus for finding a job for a white male between the ages of 35 and 54. 
 
-**compare to part 3 model**
+We see that there is a significant difference between the coefficients from this regression compared to the model from part (3). Furthermore, this estimate is large and statistically significant. This means that if we can continue to believe that our prior assumptions about causal identification hold, it may be the case that our prior regression may not have accurately matched the true/underlying population model/been misspecified. Specifically, we are able to account for potential heterogeneity in treatment effects to some extent by including interactions (i.e. now looking at CATE). While we see that the coefficients for all of the interactions are insignificantly different from zero, a comparison of models using ANOVA below provides some evidence that the model with interactions is a better representation of the data (although causality is not guaranteed). 
+
+```{r}
+base_model <- lm(Y ~ ., data = data.frame(D))
+interactions_model <- lm(Y ~ D*(.), data=cbind(D,W))
+stargazer(anova(base_model,interactions_model),
+          type='text',digits=3,
+          title='Comparison of Models')
+```
 
 #### (6)
 
-We see that for other groups, the 
+We see that for other groups, our conclusions do change somewhat since the treatment effect for some groups, that is $\beta_1$, is insignificantly different from zero. This is more often the case for the regression from part 5 which includes interactions, with the coefficients for the first two regressions generally being fairly similar. 
 
 
 ### Problem 2
@@ -142,6 +151,8 @@ We see that for other groups, the
 #### (0)
 
 Let $\beta = 3$
+
+#### (1),(2),(3)
 
 ```{r}
 dgp <- function(n_obs){
