@@ -1,0 +1,230 @@
+---
+title: "Home Assignment 1"
+author: "Matthew Zhao"
+date: "1/14/2023"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lecture 1 HW
+
+### Problem 1
+
+$$\displaystyle \hat{\sigma}^2_n = \frac{1}{n} \sum^n_{i=1} (X_i - \bar{X_n})^2$$
+$$= \frac{1}{n} \sum^n_{i=1} X_i^2 - 2X_i\bar{X_n} + \bar{X_n}^2$$
+$$= \frac{1}{n} \sum^n_{i=1} (X_i^2) - 2(\frac{1}{n} \sum^n_{i=1}X_i\bar{X_n}) + \frac{1}{n} (\sum^n_{i=1}\bar{X_n})^2$$
+$$= \frac{1}{n} \sum^n_{i=1} (X_i^2) - 2(\frac{1}{n} \sum^n_{i=1}X_i)^2 + \frac{1}{n} (\sum^n_{i=1}X_i)^2$$
+$$= \frac{1}{n} \sum^n_{i=1} (X_i^2) - (\frac{1}{n} \sum^n_{i=1}X_i)^2$$
+
+By LLN, $\displaystyle \frac{1}{n} \sum^n_{i=1} (X_i^2) \overset{p}{\to} E_P(X^2)$ and $\displaystyle \frac{1}{n} \sum^n_{i=1} X_i \overset{p}{\to} E_P(X)$
+
+By CMT, $\hat{\sigma}^2_n \overset{p}{\to} E_P(X^2) - E_P(X)^2 = Var_P(X)$
+
+### Problem 2
+
+Intuitively, as $n \to \infty$, the probability that $X_1$,...,$X_n$ does not contain $\theta$ approaches 0 by definition of uniform distribution. Hence, the probability that our estimator for $\theta$ ($\text{max}\{X_1,...,X_n\}$) does not equal $\theta$ also goes to zero, thus $P(|\hat{\theta}-\theta|>\epsilon)\to 0$ as $n \to \infty$.
+
+Formally, we can derive the CDF $F_\theta$ of our estimator and use it to show that as $n\to \infty$, our estimator converges in probability to $\theta$. Specifically, we can use order statistics to show that $F_\theta(x) = F(x)^n$ where $F(x)$ is the CDF for each individual $X_i$ drawn from $U[0,\theta]$:
+$$F_\theta(x) = \mathbb{P}(X_1,...,X_n \le x)$$
+$$ = \mathbb{P}(X_1 \le x)\mathbb{P}(X_2 \le x)...\mathbb{P}(X_n \le x)$$
+$$ = F(x)^n$$
+Plugging this result in we show:
+$$\mathbb{P}(|\hat{\theta}_n - \theta| > \epsilon) = \mathbb{P}(\theta-\epsilon < \hat{\theta}_n < \theta + \epsilon)$$
+$$ = F_\theta(\theta + \epsilon) - F_\theta(\theta - \epsilon)$$
+$$ = F(\theta + \epsilon)^n - F(\theta - \epsilon)^n$$
+$$ = \frac{(\theta + \epsilon)^n}{\theta} - \frac{(\theta - \epsilon)^n}{\theta} \to 0$$
+as $\epsilon \to 0$, thus $\hat{\theta}_n \overset{p}{\to} \theta$
+
+### Problem 3
+
+```{r, warning=F,message=F}
+library(tidyverse)
+library(haven)
+library(stargazer)
+library(xtable)
+options(scipen=999)
+
+make_ci <- function(xbar,var){
+  c(xbar - 1.96*var, xbar + 1.96*var)
+}
+
+ci_coverage <- function(n){
+  X <- rnorm(n)
+  xbar <- mean(X)
+  sd <- sd(X)
+  
+  known <- make_ci(xbar,1/sqrt(n))
+  est <- make_ci(xbar,sd/sqrt(n))
+  
+  c(0 >= known[1] & 0 <= known[2],
+    0 >= est[1] & 0 <= est[2])
+}
+
+known_results <- c()
+est_results <- c()
+N <- c(30,100,500)
+for (n in N){
+  known_temp <- c()
+  est_temp <- c()
+  for (x in 1:1000){
+    known_temp <- c(known_temp,ci_coverage(n)[1])
+    est_temp <- c(est_temp,ci_coverage(n)[2])
+  }
+  known_results <- c(known_results,mean(known_temp))
+  est_results <- c(est_results,mean(est_temp))
+}
+data.frame(N,est_results,known_results)
+```
+
+For each N, the CIs have better coverage when using the actual distribution variance. This generally stays the same across values of N and different runs.  
+
+## Lecture 2 HW
+
+### Problem 1
+
+#### (1),(2),(3)
+
+```{r}
+df <- read.csv('penn.csv')
+
+df_sub <- df %>%
+  filter(tg == 0 | tg == 4)
+Y <- log(df_sub$inuidur1)
+D <- ifelse(df_sub$tg == 4,1,0)
+W <- df_sub %>%
+  select(female,black,hispanic,othrace,agelt35,agegt54)
+```
+
+#### (3)
+
+```{r, warning=FALSE}
+stargazer(lm(Y ~ ., data = data.frame(D)),type='text',digits=3,
+          title='Model Estimates with Treatment')
+```
+
+We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 8.5% when being offered a cash bonus for finding a job. 
+
+To interpret the coefficient as the causal effect of being offered a cash bonus for finding a job on initial unemployment duration, we would need to assume that the treatment was completely random, specifically that being offered the cash bonus (treatment) is independent of all other determinants of the duration of an individual's first spell of unemployment. 
+
+#### (4)
+
+```{r, warning=FALSE}
+stargazer(lm(Y ~ .,data=cbind(D,W)),type='text',digits=3,
+          title='Model Estimates with Controls for sex, race, and age')
+```
+
+We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 8.0% when being offered a cash bonus for finding a job, holding gender, race, and age fixed. **other coef?**
+
+To interpret the coefficient as the causal effect of being offered a cash bonus for finding a job on initial unemployment duration, we would need to assume that the treatment was completely random, specifically that being offered the cash bonus (treatment) is independent of all other determinants of the duration of an individual's first spell of unemployment. **change to SO**
+
+
+#### (5)
+
+```{r, warning=FALSE}
+stargazer(lm(Y ~ D*(.), data=cbind(D,W)),type='text',digits=3,
+          title='Model Estimates with Controls and Treatment/Control Interactions')
+```
+
+We interpret $\hat{\beta}_1$ as an average approximate decrease in an individual's first spell of unemployment (in weeks) of 16.3% when being offered a cash bonus for finding a job for a white male between the ages of 35 and 54. 
+
+**compare to part 3 model**
+
+#### (6)
+
+We see that for other groups, the 
+
+
+### Problem 2
+
+#### (0)
+
+Let $\beta = 3$
+
+```{r}
+dgp <- function(n_obs){
+  Z <- matrix(
+      rnorm(n = n_obs*2, mean = 2, sd = 1),
+      nrow = n_obs,
+      ncol = 2
+  )
+  beta_instrument_vector <- matrix(5, nrow = 2, ncol = 1)
+  confounder <- matrix(rnorm(n = n_obs, mean = 0, sd = sqrt((1:n_obs)^1.5)))
+  X <- rnorm(n_obs, mean = 2, sd = 1) + confounder + Z %*% beta_instrument_vector
+  Y <- 3*X + confounder
+  as.matrix(data.frame(Y,X,Z))
+}
+
+beta <- function(data,num){
+  if (num ==1){
+    omega <- omega_1(data)
+  } else if (num == 2){
+    omega <- omega_2(data)
+  } else{
+    omega <- omega_3(data)
+  }
+  l <- solve(t(data[,2]) %*% data[,3:4] %*% omega %*% t(data[,3:4]) %*% data[,2])
+  r <- t(data[,2]) %*% data[,3:4] %*% omega %*% t(data[,3:4]) %*% data[,1]
+  l %*% r
+}
+
+omega_1 <- function(data){
+  diag(2)
+}
+
+omega_2 <- function(data){
+  prod <- matrix(0,2,2)
+  for (i in 1:nrow(data)) {
+    prod <- prod + data[i,3:4] %*% t(data[i,3:4])
+  }
+  solve(prod/nrow(data))
+}
+
+omega_3 <- function(data){
+  beta_2sls <- beta(data,2)
+  res <- data[,1] - data[,2] %*% beta_2sls
+  
+  prod <- matrix(0,2,2)
+  for (i in 1:nrow(data)) {
+    prod <- prod + data[i,3:4] %*% t(data[i,3:4]) * res[i]^2
+  }
+  solve(prod/nrow(data))
+}
+```
+
+```{r}
+N <- c(30,200,500)
+B <- 1:3
+results <- data.frame(N = numeric(),
+                      `IV method` = numeric(),
+                      beta = numeric())
+
+for (n in N) {
+  for (b in B) {
+    betas <- c()
+    for (x in 1:1000){
+      data <- dgp(n)
+      temp <- beta(data,b)
+      betas <- c(betas,temp)
+    }
+    new <- data.frame(rep(n,1000),
+                      rep(b,1000),
+                      betas)
+    results <- rbind(results,new)
+  }
+}
+```
+
+```{r}
+colnames(results) <- c('N',"IV Method",'beta')
+ggplot(data = results,mapping=aes(x=beta)) + 
+  geom_histogram() + 
+  facet_grid(N ~ `IV Method`) + 
+  labs(x = 'IV Method',y = 'N') + 
+  geom_vline(xintercept = 3)
+```
+
+From the above histograms we see that as n increases, our estimate of $\beta$ approaches the true value. Additionally, we see that the second and third methods for finding $\Omega$ produce $beta$s that are more concentrated around the true value as n increases. This confirms their theoretical properties where these methods produce estimators with lower asymptotic variance.  
+
