@@ -53,7 +53,7 @@ make_regdf <- function(lower,upper){
     filter((year >= lower) & (year <= upper)) %>%
     mutate(lprice = log(price),
            lsales = log(sales),
-           aftexpl = ifelse((Date > my('Feb 2015')),1,0),
+           aftexpl = as.factor(ifelse((Date > my('Feb 2015')),1,0)),
            t_expl = as.numeric(Date - my('Feb 2015')),
            t_expl_sq = t_expl ** 2,
            fct_month = as.factor(month),
@@ -66,8 +66,13 @@ make_regdf <- function(lower,upper){
   first_stage <- recipe(lprice ~ ., data = analysis_df)
   
   reg_df <- first_stage %>%
-    step_dummy(fct_month,fct_year,fct_quarter,fct_week,
-               fct_wday,fct_qday, one_hot = T) %>%
+    step_dummy(aftexpl,fct_month,fct_year,fct_quarter,fct_week,
+               fct_wday,fct_qday) %>%
+    step_interact(terms = ~ contains('fct_month'):starts_with('fct_year')) %>%
+    step_interact(terms = ~ contains('fct_quarter'):starts_with('fct_year')) %>%
+    step_interact(terms = ~ ends_with('aftexpl_X1'):starts_with('fct_year')) %>%
+    step_interact(terms = ~ ends_with('aftexpl_X1')*contains('fct_quarter')) %>%
+    step_interact(terms = ~ ends_with('aftexpl_X1')*contains('fct_month')) %>%
     prep(training = analysis_df) %>%
     bake(analysis_df)
   
@@ -75,7 +80,7 @@ make_regdf <- function(lower,upper){
 }
 
 # returns a regression model
-run_reg <- function(df, w, z){
+run_tsls <- function(df, w, z){
   # w - exogenous
   # z - instruments
   form_y <- 'lsales ~'
@@ -87,47 +92,75 @@ run_reg <- function(df, w, z){
   tsls
 }
 
+# run first stage
+run_fstg <- function(df, w, z){
+  # w - exogenous
+  # z - instruments
+  form_endog <- 'lprice ~'
+  first_form <- paste(form_endog,z,'+',w)
+  
+  fstg <- ivreg(formula = as.formula(first_form), 
+                data = df)
+  fstg
+}
+
+
 # preliminary regressions ----
 
-base_models <- list()
-for (x in 0:2) {
-  w <- 't_expl + t_expl_sq'
-  z <- 'aftexpl'
-  if (x != 0){
-    df_p <- make_regdf(2012+x,2018)
-    df_m <- make_regdf(2012,2018-x)
-    df_pm <- make_regdf(2012+x,2018-x)
-    reg_p <- run_reg(df_p, w, z)
-    reg_m <- run_reg(df_m, w, z)
-    reg_pm <- run_reg(df_pm, w, z)
-    base_models <- append(base_models,
-                          list(reg_p,reg_m,reg_pm))
-  } else {
-    df <- make_regdf(2012,2018)
-    reg <- run_reg(df,w,z)
-    base_models <- append(base_models,reg)
-  }
-}
-for (i in seq(1,40,8)) {
-  if (i != 33){
-    idx <- seq(i,i+7)
-  } else{
-    idx <- seq(i,i+6)
-  }
-  stargazer(base_models[idx],
-            out = paste0('base',idx[1],'_',
-                         idx[length(idx)],'.tex'),
-            type='latex',digits=3, column.sep.width = "5pt",
-            dep.var.labels.include = F,
-            keep.stat = c('chi2'),
-            title='Baseline Regressions (1-8)',
-            notes = c('Baseline TSLS regression run with progressively 
-                    smaller windows. First run for 2012-2018, then 
-                    remaining with +1 lower, -1 upper, then +1 lower 
-                    and -1 upper for window size bounds. '))
-}
+## baseline ----
+w <- 't_expl + t_expl_sq'
+z <- 'aftexplX1'
+df_2012_2018 <- make_regdf(2012,2018)
+base_reg_2012_2018 <- run_tsls(df_2012_2018, w, z)
+df_2013_2017 <- make_regdf(2013,2017)
+base_reg_2013_2017 <- run_tsls(df_2013_2017, w, z)
+df_2014_2016 <- make_regdf(2014,2016)
+base_reg_2014_2016 <- run_tsls(df_2014_2016, w, z)
 
+stargazer(base_reg_2012_2018,base_reg_2013_2017,base_reg_2014_2016,
+          type='latex',digits=3, column.sep.width = "5pt",
+          dep.var.labels.include = F,
+          column.labels = c('2012-2018','2013-2017','2014-2016','2014-2018'),
+          keep.stat = c('chi2'),
+          title='Baseline Regressions')
 
+base_fstg_2012_2018 <- run_fstg(df_2012_2018, w, z)
+base_fstg_2013_2017 <- run_fstg(df_2013_2017, w, z)
+base_fstg_2014_2016 <- run_fstg(df_2014_2016, w, z)
+
+stargazer(base_fstg_2012_2018,base_fstg_2013_2017,base_fstg_2014_2016,
+          type='latex',digits=3, column.sep.width = "5pt",
+          dep.var.labels.include = F,
+          keep.stat = c('chi2'),
+          title='Baseline First Stage')
+
+## other specifications
+
+df_2012_2018 <- make_regdf(2012,2018)
+
+# redo these
+vars <- colnames(df_2012_2018)
+aft_all <- vars[str_detect(vars,'aftexpl')]
+month_all <- vars[str_detect(vars,'_month_')]
+year_all <- vars[str_detect(vars,'_year_')]
+quarter_all <- vars[str_detect(vars,'_quarter_')]
+year_ind <- setdiff(year_all,month_all)[1:6]
+quarter.year <- setdiff(year_all,month_all)[7:24]
+aftexpl.quarter <- intersect(aft_all,quarter_all)[1:3]
+aftexpl.quarter.year <- setdiff(year_all,month_all)[25:42]
+month.year <- setdiff(year_all,quarter_all)[7:72]
+aftexpl.month <- intersect(aft_all,month_all)[1:11]
+aftexpl.month.year <- setdiff(year_all,quarter_all)[73:138]
+month_ind <- setdiff(month_all,year_all)[1:11]
+quarter_ind <- setdiff(quarter_all,year_all)[1:3]
+aftexpl.year <- intersect(aft_all,year_all)[1:11]
+
+w <- paste('t_expl + t_expl_sq',
+           paste0(month_ind,collapse = '+'),
+           paste0(aftexpl.quarter.year,collapse = '+'),
+           sep = ' + ')
+
+z.yr_reg_2012_2018 <- run_tsls(df_2012_2018, w, z)
 
 # graphs ----
 ggplot(data = analysis_df, 
