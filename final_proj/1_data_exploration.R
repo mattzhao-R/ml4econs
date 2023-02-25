@@ -74,7 +74,6 @@ mth <- paste0('mth',pre_interact_df$month)
 yr <- paste0('yr',pre_interact_df$year)
 aftexpl <- pre_interact_df$aftexpl
 aftexpl.dist_to_ref <- pre_interact_df$aftexpl.dist_to_ref
-dist_to_torr <- pre_interact_df$dist_to_refinery
 
 analysis_df <- 
   bind_cols(pre_interact_df,
@@ -86,6 +85,35 @@ analysis_df <-
   data.frame(i(mth, aftexpl.dist_to_ref, ref = T))
   )
 
+### renaming columns ----
+
+cn <- colnames(analysis_df)
+
+# month fixed effects + interactions with instruments
+mthfe_allint <- setdiff(cn[str_detect(cn, 'mth')],
+                        cn[str_detect(cn, "mth") & str_detect(cn, "yr")])
+mthfe <- mthfe_allint[1:11]
+mth_fe.aftexpl <- mthfe_allint[12:22]
+mth_fe.aftexpl.dist_to_ref <- mthfe_allint[23:33]
+
+mthfe_pos <- match(mthfe, colnames(analysis_df))
+mthfe_names <- paste0('fe_',str_extract(mthfe,
+                                        "[a-z]{3}[0-9]{1,2}"))
+colnames(analysis_df)[mthfe_pos] <- mthfe_names
+
+mthfe.aftexpl_pos <- match(mth_fe.aftexpl, colnames(analysis_df))
+mthfe.aftexpl_names <- paste0('fe.aftexpl_',
+                              str_extract(mth_fe.aftexpl,
+                                          "[a-z]{3}[0-9]{1,2}"))
+colnames(analysis_df)[mthfe.aftexpl_pos] <- mthfe.aftexpl_names
+
+mthfe.aftexpl.dist_to_ref_pos <- match(mth_fe.aftexpl.dist_to_ref, colnames(analysis_df))
+mthfe.aftexpl.dist_to_ref_names <- paste0('fe.aftexpl.dist_to_ref_',
+                                          str_extract(mth_fe.aftexpl.dist_to_ref,
+                                                      "[a-z]{3}[0-9]{1,2}"))
+colnames(analysis_df)[mthfe.aftexpl.dist_to_ref_pos] <- mthfe.aftexpl.dist_to_ref_names
+
+# export for analysis
 write.csv(analysis_df,file.path(ddir,'final_data.csv'))
 
 
