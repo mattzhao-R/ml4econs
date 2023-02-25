@@ -9,7 +9,7 @@ library(lmtest)
 library(sandwich)
 library(broom)
 library(whitestrap)
-library(recipes)
+library(fixest)
 library(ivreg)
 library(car)
 
@@ -18,66 +18,65 @@ ddir_matt <- './data/'
 ddir <- ddir_matt
 
 # data preparation ----
-wc_price_df <- read.csv(
-  file.path(ddir, "w_retail_gas_prices.csv"))
 
-wc_sales_df <- read.csv(
-  file.path(ddir, "m_retail_gas_sales.csv"))
+## prep functions ----
+make_longdf <- function(filename){
+  df <- read.csv(file.path(ddir, filename)) %>%
+    mutate(Date = mdy(Date),
+           month = month(Date),
+           year = year(Date)) %>%
+    pivot_longer(cols=!c(Date,month,year),
+                 names_to = 'county',
+                 values_to = 'value')
+    df
+}
 
-## aggregate price to monthly freq ----
-wc_price_m <- wc_price_df
-colnames(wc_price_m)[2] <- 'all_retail'
-wc_price_m <- wc_price_m %>%
-  select(Date,all_retail) %>%
-  mutate(Date = mdy(Date),
-         month = month(Date),
-         year = year(Date)) %>%
-  group_by(year,month) %>%
-  summarise(price = mean(all_retail), .groups='keep')
-
-## merge price and sales data ----
-wc_sales_m <- wc_sales_df %>%
-  select(Date,contains('West.Coast')) %>%
-  rename(sales = contains('West.Coast')) %>%
-  mutate(Date = my(Date),
-         month = month(Date),
-         year = year(Date))
-
-merged <- left_join(wc_price_m,wc_sales_m,
-                    by = c('year','month')) %>%
-  drop_na(price,sales)
-
-# create instruments + indicators ----
-make_regdf <- function(lower,upper){
-  analysis_df <- merged %>%
-    filter((year >= lower) & (year <= upper)) %>%
+make_covariates <- function(df){
+  df <- df %>%
     mutate(lprice = log(price),
            lsales = log(sales),
-           aftexpl = as.factor(ifelse((Date > my('Feb 2015')),1,0)),
+           quarter = quarter(Date),
+           month = month(Date),
+           year = year(Date),
+           aftexpl = ifelse((Date > my('Feb 2015')),1,0),
            t_expl = as.numeric(Date - my('Feb 2015')),
-           t_expl_sq = t_expl ** 2,
-           fct_month = as.factor(month),
-           fct_year = as.factor(year),
-           fct_quarter = as.factor(quarter(Date)),
-           fct_week = as.factor(week(Date)),
-           fct_wday = as.factor(wday(Date)),
-           fct_qday = as.factor(qday(Date)))
-  
-  first_stage <- recipe(lprice ~ ., data = analysis_df)
-  
-  reg_df <- first_stage %>%
-    step_dummy(aftexpl,fct_month,fct_year,fct_quarter,fct_week,
-               fct_wday,fct_qday) %>%
-    step_interact(terms = ~ contains('fct_month'):starts_with('fct_year')) %>%
-    step_interact(terms = ~ contains('fct_quarter'):starts_with('fct_year')) %>%
-    step_interact(terms = ~ ends_with('aftexpl_X1'):starts_with('fct_year')) %>%
-    step_interact(terms = ~ ends_with('aftexpl_X1')*contains('fct_quarter')) %>%
-    step_interact(terms = ~ ends_with('aftexpl_X1')*contains('fct_month')) %>%
-    prep(training = analysis_df) %>%
-    bake(analysis_df)
-  
-  reg_df
+           t_expl_sq = t_expl ** 2)
+  df
 }
+
+
+## Data Processing - making dataframe for regression ----
+
+m_sales_df <- make_longdf('m_county_sales_2012_2022.csv') %>%
+  rename(sales = value)
+w_price_df <- make_longdf('w_county_price_idxsf_2000_2023.csv') %>%
+  rename(price = value)
+m_price_df <- w_price_df %>%
+  group_by(year,month,county) %>%
+  summarise(price = mean(price), .groups = 'keep')
+
+temp <- left_join(m_price_df,m_sales_df,
+                    by = c('year','month','county')) %>%
+  drop_na(price,sales) %>%
+  select(Date,county,price,sales,month,year)
+m_merged_df <- make_covariates(temp)
+
+### adding indicators ----
+
+qr <- paste0('qr',m_merged_df$quarter)
+mth <- paste0('mth',m_merged_df$month)
+yr <- paste0('yr',m_merged_df$year)
+aftexpl <- m_merged_df$aftexpl
+
+analysis_df <- bind_cols(m_merged_df,
+      data.frame(i(mth, ref = T)),
+      data.frame(i(qr, ref = T)),
+      data.frame(i(yr, ref = T)),
+      data.frame(i(mth, i.yr, ref = T)),
+      data.frame(i(qr, i.yr, ref = T)),
+      data.frame(i(mth, aftexpl, ref = T)),
+      data.frame(i(qr, aftexpl, ref = T)),
+      data.frame(i(yr, aftexpl, ref = T)))
 
 # returns a regression model
 run_tsls <- function(df, w, z){
@@ -108,61 +107,22 @@ run_fstg <- function(df, w, z){
 # preliminary regressions ----
 
 ## baseline ----
-w <- 't_expl + t_expl_sq'
-z <- 'aftexplX1'
-df_2012_2018 <- make_regdf(2012,2018)
-base_reg_2012_2018 <- run_tsls(df_2012_2018, w, z)
-df_2013_2017 <- make_regdf(2013,2017)
-base_reg_2013_2017 <- run_tsls(df_2013_2017, w, z)
-df_2014_2016 <- make_regdf(2014,2016)
-base_reg_2014_2016 <- run_tsls(df_2014_2016, w, z)
 
-stargazer(base_reg_2012_2018,base_reg_2013_2017,base_reg_2014_2016,
-          type='latex',digits=3, column.sep.width = "5pt",
-          dep.var.labels.include = F,
-          column.labels = c('2012-2018','2013-2017','2014-2016','2014-2018'),
-          keep.stat = c('chi2'),
-          title='Baseline Regressions')
+summary(lm(lsales ~ lprice, data = analysis_df))
+summary(ivreg(lsales ~ t_expl + t_expl_sq | lprice | aftexpl,
+              data = analysis_df))
 
-base_fstg_2012_2018 <- run_fstg(df_2012_2018, w, z)
-base_fstg_2013_2017 <- run_fstg(df_2013_2017, w, z)
-base_fstg_2014_2016 <- run_fstg(df_2014_2016, w, z)
+summary(run_tsls(analysis_df,'t_expl + t_expl_sq','aftexpl'))
 
-stargazer(base_fstg_2012_2018,base_fstg_2013_2017,base_fstg_2014_2016,
-          type='latex',digits=3, column.sep.width = "5pt",
-          dep.var.labels.include = F,
-          keep.stat = c('chi2'),
-          title='Baseline First Stage')
-
-## other specifications
-
-df_2012_2018 <- make_regdf(2012,2018)
-
-# redo these
-vars <- colnames(df_2012_2018)
-aft_all <- vars[str_detect(vars,'aftexpl')]
-month_all <- vars[str_detect(vars,'_month_')]
-year_all <- vars[str_detect(vars,'_year_')]
-quarter_all <- vars[str_detect(vars,'_quarter_')]
-year_ind <- setdiff(year_all,month_all)[1:6]
-quarter.year <- setdiff(year_all,month_all)[7:24]
-aftexpl.quarter <- intersect(aft_all,quarter_all)[1:3]
-aftexpl.quarter.year <- setdiff(year_all,month_all)[25:42]
-month.year <- setdiff(year_all,quarter_all)[7:72]
-aftexpl.month <- intersect(aft_all,month_all)[1:11]
-aftexpl.month.year <- setdiff(year_all,quarter_all)[73:138]
-month_ind <- setdiff(month_all,year_all)[1:11]
-quarter_ind <- setdiff(quarter_all,year_all)[1:3]
-aftexpl.year <- intersect(aft_all,year_all)[1:11]
-
-w <- paste('t_expl + t_expl_sq',
-           paste0(month_ind,collapse = '+'),
-           paste0(aftexpl.quarter.year,collapse = '+'),
-           sep = ' + ')
-
-z.yr_reg_2012_2018 <- run_tsls(df_2012_2018, w, z)
+# stargazer(base_reg_2014_2016,
+#           type='latex',digits=3, column.sep.width = "5pt",
+#           dep.var.labels.include = F,
+#           column.labels = c('2014-2018'),
+#           keep.stat = c('chi2'),
+#           title='Baseline Regressions')
 
 # graphs ----
+## dingel plot
 ggplot(data = analysis_df, 
        mapping = aes(x = lprice, y = lsales)) + 
   geom_point()
