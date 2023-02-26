@@ -25,13 +25,13 @@ df <- read.csv(file.path(ddir, 'final_data.csv'))[,-1] %>%
 ## variable column extraction ----
 
 ### time fe + instrument int ----
-indiv_mth_fe <- colnames(df)[str_detect(colnames(df),'mthfe_')]
-mth_fe <- paste(indiv_mth_fe,
+indiv_mthyr_fe <- colnames(df)[str_detect(colnames(df),'mthyrfe_')]
+mthyr_fe <- paste(indiv_mthyr_fe,
                 collapse = ' + ')
-mth.aftexpl <- paste(colnames(df)[str_detect(colnames(df),'mthfe.aftexpl_')],
+mthyr.aftexpl <- paste(colnames(df)[str_detect(colnames(df),'mthyr.aftexplmth')],
                 collapse = ' + ')
-mth.aftexpl.dist_to_ref <- 
-  paste(colnames(df)[str_detect(colnames(df),'mthfe.aftexpl.dist_to_ref_')],
+mthyr.aftexpl.dist_to_ref <- 
+  paste(colnames(df)[str_detect(colnames(df),'mthyr.aftexpl.dist_to_ref')],
         collapse = ' + ')
 
 ### county fe + instrument int ----
@@ -86,20 +86,51 @@ etable(ols_base,tsls_base,
 fm <- paste(
   'lprice ~ ',
   paste(
-    mth.aftexpl,
-    mth.aftexpl.dist_to_ref,
+    mthyr.aftexpl,
+    mthyr.aftexpl.dist_to_ref,
     'aftexpl + aftexpl.dist_to_ref',
     sep = '+')
 )
 lm_county_test <- feols(
   as.formula(fm),
-  fixef = c(indiv_mth_fe,indiv_cnty_fe),
+  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  data = df
+)
+fm2 <- paste(
+  'lprice ~ ',
+  paste(
+    mthyr.aftexpl,
+    mthyr.aftexpl.dist_to_ref,
+    cnty.aftexpl,
+    'aftexpl + aftexpl.dist_to_ref',
+    sep = '+')
+)
+lm_county_test_wcnty.aftexpl <- feols(
+  as.formula(fm2),
+  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  data = df
+)
+fm3 <- paste(
+  'lprice ~ ',
+  paste(
+    mthyr.aftexpl,
+    mthyr.aftexpl.cnty, #make mthyr.aftexp.cnty by pivot longer mthyr and interact
+                        # with cnty then do method to interact with aftexpl
+    cnty.aftexpl,
+    'aftexpl',
+    sep = '+')
+)
+lm_county_test_replwcnty.aftexpl <- feols(
+  as.formula(fm3),
+  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
   data = df
 )
 
-etable(lm_county_test,
+
+etable(lm_county_test, lm_county_test_wcnty.aftexpl,
        tex = T,
-       title = 'Test for County Effect')
+       title = 'Test for County Effect',
+       keep = "!mthyr")
 
 stargazer(ols_base,tsls_base,
           type='latex',digits=3, column.sep.width = "5pt",
