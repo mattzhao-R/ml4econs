@@ -1,4 +1,4 @@
-# Last updated: Feb 25, 2023
+# Last updated: Feb 26, 2023
 
 library(tidyverse)
 library(lubridate)
@@ -12,7 +12,7 @@ library(whitestrap)
 library(fixest)
 library(ivreg)
 library(car)
-
+library(SteinIV)
 
 # ddir_json <- 
 ddir_matt <- './data/'
@@ -28,17 +28,20 @@ df <- read.csv(file.path(ddir, 'final_data.csv'))[,-1] %>%
 indiv_mthyr_fe <- colnames(df)[str_detect(colnames(df),'mthyrfe_')]
 mthyr_fe <- paste(indiv_mthyr_fe,
                 collapse = ' + ')
-mthyr.aftexpl <- paste(colnames(df)[str_detect(colnames(df),'mthyr.aftexplmth')],
+indiv_mthyr.aftexpl <- colnames(df)[str_detect(colnames(df),'mthyr.aftexplmth')]
+mthyr.aftexpl <- paste(indiv_mthyr.aftexpl,
                 collapse = ' + ')
+indiv_mthyr.aftexpl.dist_to_ref <- colnames(df)[str_detect(colnames(df),'mthyr.aftexpl.dist_to_ref')]
 mthyr.aftexpl.dist_to_ref <- 
-  paste(colnames(df)[str_detect(colnames(df),'mthyr.aftexpl.dist_to_ref')],
+  paste(indiv_mthyr.aftexpl.dist_to_ref,
         collapse = ' + ')
 
 ### county fe + instrument int ----
 indiv_cnty_fe <- colnames(df)[str_detect(colnames(df), "cntyfe_")]
 cnty_fe <- paste(indiv_cnty_fe,
                 collapse = ' + ')
-cnty.aftexpl <- paste(colnames(df)[str_detect(colnames(df),'cntyfe.aftexpl_')],
+indiv_cnty.aftexpl <- colnames(df)[str_detect(colnames(df),'cntyfe.aftexpl_')]
+cnty.aftexpl <- paste(indiv_cnty.aftexpl,
                      collapse = ' + ')
 
 ## functions ----
@@ -46,6 +49,7 @@ cnty.aftexpl <- paste(colnames(df)[str_detect(colnames(df),'cntyfe.aftexpl_')],
 
 
 ## preliminary analysis ----
+
 
 
 ### regressions ----
@@ -60,23 +64,11 @@ stargazer(ols_lprice_dist_to_ref_pre_expl,
           dep.var.labels.include = F,
           title='Log Price vs Distance to Refinery')
 
-ols_base <- feols(lsales ~ lprice, data = df)
+ols_base <- feols(lsales ~ lprice, 
+                  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+                  data = df)
 
-# baseline regressions
-# base_formula <- paste(
-#   'lsales ~ ',
-#   paste(mth_fe,
-#         mth.aftexpl_fe,
-#         mth.aftexpl.dist_to_ref_fe,
-#         sep = ' + '),
-#   '| lprice ~',
-#   'aftexpl + aftexpl.dist_to_ref'
-#   )
-
-tsls_base <- feols(as.formula(base_formula),
-                   fixef = indiv_mth_fe,
-                   data = df)
-etable(ols_base,tsls_base,
+etable(ols_base,
        tex = T,
        title = 'Baseline Regressions')
 
@@ -91,21 +83,13 @@ fm <- paste(
     'aftexpl + aftexpl.dist_to_ref',
     sep = '+')
 )
-lm_county_test <- feols(
+lm_old_fstg <- feols(
   as.formula(fm),
   fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
   data = df
 )
-fm2 <- paste(
-  'lprice ~ ',
-  paste(
-    mthyr.aftexpl,
-    mthyr.aftexpl.dist_to_ref,
-    cnty.aftexpl,
-    'aftexpl + aftexpl.dist_to_ref',
-    sep = '+')
-)
-lm_county_test_wcnty.aftexpl <- feols(
+fm2 <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
+lm_new_fstg <- feols(
   as.formula(fm2),
   fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
   data = df
@@ -114,30 +98,97 @@ fm3 <- paste(
   'lprice ~ ',
   paste(
     mthyr.aftexpl,
-    mthyr.aftexpl.cnty, #make mthyr.aftexp.cnty by pivot longer mthyr and interact
-                        # with cnty then do method to interact with aftexpl
-    cnty.aftexpl,
-    'aftexpl',
+    'aftexpl + aftexpl.dist_to_ref',
     sep = '+')
 )
-lm_county_test_replwcnty.aftexpl <- feols(
+lm_new_fstg_wmthyr.aftexpl <- feols(
   as.formula(fm3),
   fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
   data = df
 )
 
-
-etable(lm_county_test, lm_county_test_wcnty.aftexpl,
+etable(lm_county_test,lm_new_fstg,lm_new_fstg_wmthyr.aftexpl,
        tex = T,
-       title = 'Test for County Effect',
+       title = 'First Stages',
+       fitstat = 'f',
+       style.tex = style.tex('aer'),
        keep = "!mthyr")
 
-stargazer(ols_base,tsls_base,
-          type='latex',digits=3, column.sep.width = "5pt",
-          dep.var.labels.include = F,
-          model.names = T,
-          title='Baseline Regressions')
 
+# checking for interaction significance in first stage (ovb)
+## regress aftexpl.county on U (fstg residuals) 
+
+betapvals_aftexpl.cnty_on_U <- c()
+U <- lm_new_fstg$residuals
+# beta <- c()
+
+for (i in 1:length(indiv_cnty.aftexpl)) {
+  y <- indiv_cnty.aftexpl[i]
+  temp_fm <- paste(y,'~ U')
+  temp_lm <- lm(as.formula(temp_fm),data=df)
+  
+  # temp_beta <- temp_lm$coefficients['U']
+  # beta <- c(beta,
+  #           temp_beta)
+  
+  beta_pval <- summary(temp_lm)$coefficients[2,4]
+  betapvals_aftexpl.cnty_on_U <- c(betapvals_aftexpl.cnty_on_U,
+                                   beta_pval)
+}
+
+sum(betapvals_aftexpl.cnty_on_U < 0.01) / length(betapvals_aftexpl.cnty_on_U)
+
+
+## regress mthyr.aftexpl, mthyr.aftexpl.dist_to_ref on U
+
+betapvals_mthyr.aftexpl_on_U <- c()
+U <- lm_new_fstg$residuals
+
+for (i in 1:length(indiv_mthyr.aftexpl)) {
+  y <- indiv_mthyr.aftexpl[i]
+  temp_fm <- paste(y,'~ U')
+  temp_lm <- lm(as.formula(temp_fm),data=df)
+  
+  beta_pval <- summary(temp_lm)$coefficients[2,4]
+  betapvals_mthyr.aftexpl_on_U <- c(betapvals_mthyr.aftexpl_on_U,
+                                   beta_pval)
+}
+
+sum(betapvals_mthyr.aftexpl_on_U < 0.01) / length(betapvals_mthyr.aftexpl_on_U)
+
+
+betapvals_mthyr.aftexpl.dist_to_expl_on_U <- c()
+U <- lm_new_fstg$residuals
+
+for (i in 1:length(indiv_mthyr.aftexpl.dist_to_ref)) {
+  y <- indiv_mthyr.aftexpl.dist_to_ref[i]
+  temp_fm <- paste(y,'~ U')
+  temp_lm <- lm(as.formula(temp_fm),data=df)
+  
+  beta_pval <- summary(temp_lm)$coefficients[2,4]
+  betapvals_mthyr.aftexpl.dist_to_expl_on_U <- c(betapvals_mthyr.aftexpl.dist_to_expl_on_U,
+                                    beta_pval)
+}
+
+sum(betapvals_mthyr.aftexpl.dist_to_expl_on_U < 0.01) / length(betapvals_mthyr.aftexpl.dist_to_expl_on_U)
+
+
+### Other Estimators (Post-Lasso, JIVE, RJIVE) ----
+
+#### Post Lasso ----
+
+
+#### jive ----
+# using SteinIV package jive.est function
+y <- data.matrix(df$lsales)
+X <- data.matrix(df %>%
+  select(lprice,contains('mthyrfe_'),contains('cntyfe_')))
+Z <- data.matrix(df %>%
+  select(aftexpl,aftexpl.dist_to_ref,contains('mthyrfe_'),contains('cntyfe_')))
+jive.est(y,X,Z)
+
+
+#### rjive ----
 
 ### graphs ----
 
