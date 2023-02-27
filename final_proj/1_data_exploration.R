@@ -69,7 +69,7 @@ pre_interact_df <- m_merged_df %>%
          time = as.character(year * 100 + month)) %>%
   rename(date = Date) %>%
   ungroup() %>%
-  select(county,time,everything())
+  dplyr::select(county,time,everything())
 time_map <- setNames(seq(1,length(unique(pre_interact_df$time))), 
                      unique(pre_interact_df$time))
 pre_interact_df$time <- time_map[pre_interact_df$time]
@@ -77,8 +77,8 @@ pre_interact_df$time <- time_map[pre_interact_df$time]
 
 county <- pre_interact_df$county
 time <- paste0('t',pre_interact_df$time)
-mth <- paste0('mth',pre_interact_df$month)
-yr <- paste0('yr',pre_interact_df$year)
+# mth <- paste0('mth',pre_interact_df$month)
+# yr <- paste0('yr',pre_interact_df$year)
 aftexpl <- pre_interact_df$aftexpl
 aftexpl.dist_to_ref <- pre_interact_df$aftexpl.dist_to_ref
 
@@ -86,7 +86,9 @@ analysis_df <-
   bind_cols(pre_interact_df,
   data.frame(i(county, ref = T)),
   data.frame(i(time, ref = T)),
-  data.frame(i(mth, i.yr, ref = T)),
+  data.frame(i(time, aftexpl, ref = T)),
+  data.frame(i(time, aftexpl.dist_to_ref, ref = T)),
+  # data.frame(i(mth, i.yr, ref = T)),
   data.frame(i(county, aftexpl, ref = T))
   )
 
@@ -95,17 +97,41 @@ analysis_df <-
 cn <- colnames(analysis_df)
 
 #### month-year fixed effects
-mthyrfe <- cn[str_detect(cn, "mth")]
-
-mthyrfe_pos <- match(mthyrfe, colnames(analysis_df))
-mthfe_names <- paste0('mthyrfe_',mthyrfe)
-colnames(analysis_df)[mthyrfe_pos] <- mthfe_names
+# mthyrfe <- cn[str_detect(cn, "mth")]
+# 
+# mthyrfe_pos <- match(mthyrfe, colnames(analysis_df))
+# mthfe_names <- paste0('mthyrfe_',mthyrfe)
+# colnames(analysis_df)[mthyrfe_pos] <- mthfe_names
 
 # mthfe.aftexpl_pos <- match(mthfe.aftexpl, colnames(analysis_df))
 # mthfe.aftexpl_names <- paste0('mthfe.aftexpl_',
 #                               str_extract(mthfe.aftexpl,
 #                                           "[a-z]{3}[0-9]{1,2}"))
 # colnames(analysis_df)[mthfe.aftexpl_pos] <- mthfe.aftexpl_names
+
+#### time fe + interaction w instrument
+
+timefe_allint <- cn[str_detect(cn, "^t\\d+")]
+timefe <- timefe_allint[1:83]
+timefe.aftexpl <- timefe_allint[84:166]
+timefe.aftexpl.dist_to_ref <- timefe_allint[167:249]
+
+
+timefe_pos <- match(timefe, cn)
+timefe_names <- paste0('timefe_',str_extract(timefe,"^t\\d+"))
+colnames(analysis_df)[timefe_pos] <- timefe_names
+
+timefe.aftexpl_pos <- match(timefe.aftexpl, cn)
+timefe.aftexpl_names <- paste0('timefe.aftexpl_',str_extract(timefe.aftexpl,"^t\\d+"))
+colnames(analysis_df)[timefe.aftexpl_pos] <- timefe.aftexpl_names
+
+timefe.aftexpl.dist_to_ref_pos <- match(timefe.aftexpl.dist_to_ref, cn)
+timefe.aftexpl.dist_to_ref_names <- paste0('timefe.aftexpl.dist_to_ref_',
+                                           str_extract(timefe.aftexpl.dist_to_ref,
+                                                       "^t\\d+"))
+colnames(analysis_df)[timefe.aftexpl.dist_to_ref_pos] <- timefe.aftexpl.dist_to_ref_names
+
+
 
 #### county fe + interaction w instrument
 
@@ -125,47 +151,47 @@ cntyfe.aftexpl_names <- paste0('cntyfe.aftexpl_',
                                        "[[:alpha:]]+(?:\\.[[:alpha:]]+)?+(?:\\.[[:alpha:]]+)?"))
 colnames(analysis_df)[cntyfe.aftexpl_pos] <- cntyfe.aftexpl_names
 
-#### creating month-year.instrument interactions
+# #### creating month-year.instrument interactions
+# 
+# mthyrfe_colnames <- colnames(analysis_df)[str_detect(colnames(analysis_df), "mthyrfe")]
+# 
+# mthyr.aftexpl_df <- analysis_df %>% 
+#   select(year,month,county,aftexpl,aftexpl.dist_to_ref,
+#          all_of(contains('mthyrfe_'))
+#          )
+# 
+# mthyr.aftexpl_df[mthyrfe_colnames] <- 
+#   mthyr.aftexpl_df[mthyrfe_colnames] * 
+#   mthyr.aftexpl_df$aftexpl
+# mthyr.aftexpl_df <- mthyr.aftexpl_df %>%
+#   select(all_of(contains('mthyrfe_')))
+# colnames(mthyr.aftexpl_df) <- 
+#   str_replace(colnames(mthyr.aftexpl_df),
+#               'mthyrfe_',
+#               'mthyr.aftexpl')
+# 
+# mthyr.aftexpl.dist_to_ref_df <- analysis_df %>% 
+#   select(year,month,county,aftexpl,aftexpl.dist_to_ref,
+#          all_of(contains('mthyrfe_'))
+#   )
+# mthyr.aftexpl.dist_to_ref_df[mthyrfe_colnames] <- 
+#   mthyr.aftexpl.dist_to_ref_df[mthyrfe_colnames] * 
+#   mthyr.aftexpl.dist_to_ref_df$aftexpl.dist_to_ref
+# mthyr.aftexpl.dist_to_ref_df <- mthyr.aftexpl.dist_to_ref_df %>%
+#   select(all_of(contains('mthyrfe_')))
+# colnames(mthyr.aftexpl.dist_to_ref_df) <- 
+#   str_replace(colnames(mthyr.aftexpl.dist_to_ref_df),
+#               'mthyrfe_',
+#               'mthyr.aftexpl.dist_to_ref')
 
-mthyrfe_colnames <- colnames(analysis_df)[str_detect(colnames(analysis_df), "mthyrfe")]
-
-mthyr.aftexpl_df <- analysis_df %>% 
-  select(year,month,county,aftexpl,aftexpl.dist_to_ref,
-         all_of(contains('mthyrfe_'))
-         )
-
-mthyr.aftexpl_df[mthyrfe_colnames] <- 
-  mthyr.aftexpl_df[mthyrfe_colnames] * 
-  mthyr.aftexpl_df$aftexpl
-mthyr.aftexpl_df <- mthyr.aftexpl_df %>%
-  select(all_of(contains('mthyrfe_')))
-colnames(mthyr.aftexpl_df) <- 
-  str_replace(colnames(mthyr.aftexpl_df),
-              'mthyrfe_',
-              'mthyr.aftexpl')
-
-mthyr.aftexpl.dist_to_ref_df <- analysis_df %>% 
-  select(year,month,county,aftexpl,aftexpl.dist_to_ref,
-         all_of(contains('mthyrfe_'))
-  )
-mthyr.aftexpl.dist_to_ref_df[mthyrfe_colnames] <- 
-  mthyr.aftexpl.dist_to_ref_df[mthyrfe_colnames] * 
-  mthyr.aftexpl.dist_to_ref_df$aftexpl.dist_to_ref
-mthyr.aftexpl.dist_to_ref_df <- mthyr.aftexpl.dist_to_ref_df %>%
-  select(all_of(contains('mthyrfe_')))
-colnames(mthyr.aftexpl.dist_to_ref_df) <- 
-  str_replace(colnames(mthyr.aftexpl.dist_to_ref_df),
-              'mthyrfe_',
-              'mthyr.aftexpl.dist_to_ref')
-
-final_data_df <- 
-  bind_cols(
-    analysis_df,
-    mthyr.aftexpl_df,
-    mthyr.aftexpl.dist_to_ref_df
-    )
+# final_data_df <- 
+#   bind_cols(
+#     analysis_df,
+#     mthyr.aftexpl_df,
+#     mthyr.aftexpl.dist_to_ref_df
+#     )
 
 # export for analysis
-write.csv(final_data_df,file.path(ddir,'final_data.csv'))
+write.csv(analysis_df,file.path(ddir,'final_data.csv'))
 
 

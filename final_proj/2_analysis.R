@@ -26,17 +26,31 @@ df <- read.csv(file.path(ddir, 'final_data.csv'))[,-1] %>%
 
 ## variable column extraction ----
 
+# ### mthyr fe + instrument int ----
+# indiv_mthyr_fe <- colnames(df)[str_detect(colnames(df),'mthyrfe_')]
+# mthyr_fe <- paste(indiv_mthyr_fe,
+#                 collapse = ' + ')
+# indiv_mthyr.aftexpl <- colnames(df)[str_detect(colnames(df),'mthyr.aftexplmth')]
+# mthyr.aftexpl <- paste(indiv_mthyr.aftexpl,
+#                 collapse = ' + ')
+# indiv_mthyr.aftexpl.dist_to_ref <- colnames(df)[str_detect(colnames(df),'mthyr.aftexpl.dist_to_ref')]
+# mthyr.aftexpl.dist_to_ref <- 
+#   paste(indiv_mthyr.aftexpl.dist_to_ref,
+#         collapse = ' + ')
+
 ### time fe + instrument int ----
-indiv_mthyr_fe <- colnames(df)[str_detect(colnames(df),'mthyrfe_')]
-mthyr_fe <- paste(indiv_mthyr_fe,
-                collapse = ' + ')
-indiv_mthyr.aftexpl <- colnames(df)[str_detect(colnames(df),'mthyr.aftexplmth')]
-mthyr.aftexpl <- paste(indiv_mthyr.aftexpl,
-                collapse = ' + ')
-indiv_mthyr.aftexpl.dist_to_ref <- colnames(df)[str_detect(colnames(df),'mthyr.aftexpl.dist_to_ref')]
-mthyr.aftexpl.dist_to_ref <- 
-  paste(indiv_mthyr.aftexpl.dist_to_ref,
+
+indiv_time_fe <- colnames(df)[str_detect(colnames(df),'timefe_')]
+time_fe <- paste(indiv_time_fe,
+                  collapse = ' + ')
+indiv_time.aftexpl <- colnames(df)[str_detect(colnames(df),'time.aftexpl_')]
+time.aftexpl <- paste(indiv_time.aftexpl,
+                       collapse = ' + ')
+indiv_time.aftexpl.dist_to_ref <- colnames(df)[str_detect(colnames(df),'time.aftexpl.dist_to_ref')]
+time.aftexpl.dist_to_ref <- 
+  paste(indiv_time.aftexpl.dist_to_ref,
         collapse = ' + ')
+
 
 ### county fe + instrument int ----
 indiv_cnty_fe <- colnames(df)[str_detect(colnames(df), "cntyfe_")]
@@ -79,41 +93,40 @@ stargazer(ols_lprice_dist_to_ref_pre_expl,
 fm <- paste(
   'lprice ~ ',
   paste(
-    mthyr.aftexpl,
-    mthyr.aftexpl.dist_to_ref,
+    time.aftexpl,
+    time.aftexpl.dist_to_ref,
     'aftexpl + aftexpl.dist_to_ref',
     sep = '+')
 )
 lm_old_fstg <- feols(
   as.formula(fm),
-  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 fm2 <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
 lm_new_fstg <- feols(
   as.formula(fm2),
-  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 fm3 <- paste(
   'lprice ~ ',
   paste(
-    mthyr.aftexpl,
+    time.aftexpl,
     'aftexpl + aftexpl.dist_to_ref',
     sep = '+')
 )
-lm_new_fstg_wmthyr.aftexpl <- feols(
+lm_new_fstg_wtime.aftexpl <- feols(
   as.formula(fm3),
-  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 
-etable(lm_old_fstg,lm_new_fstg,lm_new_fstg_wmthyr.aftexpl,
+etable(lm_old_fstg,lm_new_fstg,lm_new_fstg_wtime.aftexpl,
        tex = T,
        title = 'First Stages',
        fitstat = 'f',
-       style.tex = style.tex('aer'),
-       keep = "!mthyr")
+       style.tex = style.tex('aer'))
 
 
 # checking for interaction significance in first stage (ovb)
@@ -140,38 +153,38 @@ for (i in 1:length(indiv_cnty.aftexpl)) {
 sum(betapvals_aftexpl.cnty_on_U < 0.01) / length(betapvals_aftexpl.cnty_on_U)
 
 
-## regress mthyr.aftexpl, mthyr.aftexpl.dist_to_ref on U
+## regress time.aftexpl, time.aftexpl.dist_to_ref on U
 
-betapvals_mthyr.aftexpl_on_U <- c()
+betapvals_time.aftexpl_on_U <- c()
 U <- lm_new_fstg$residuals
 
-for (i in 1:length(indiv_mthyr.aftexpl)) {
-  y <- indiv_mthyr.aftexpl[i]
+for (i in 1:length(indiv_time.aftexpl)) {
+  y <- indiv_time.aftexpl[i]
   temp_fm <- paste(y,'~ U')
   temp_lm <- lm(as.formula(temp_fm),data=df)
   
   beta_pval <- summary(temp_lm)$coefficients[2,4]
-  betapvals_mthyr.aftexpl_on_U <- c(betapvals_mthyr.aftexpl_on_U,
+  betapvals_time.aftexpl_on_U <- c(betapvals_time.aftexpl_on_U,
                                    beta_pval)
 }
 
-sum(betapvals_mthyr.aftexpl_on_U < 0.01) / length(betapvals_mthyr.aftexpl_on_U)
+sum(betapvals_time.aftexpl_on_U < 0.01) / length(betapvals_time.aftexpl_on_U)
 
 
-betapvals_mthyr.aftexpl.dist_to_expl_on_U <- c()
+betapvals_time.aftexpl.dist_to_expl_on_U <- c()
 U <- lm_new_fstg$residuals
 
-for (i in 1:length(indiv_mthyr.aftexpl.dist_to_ref)) {
-  y <- indiv_mthyr.aftexpl.dist_to_ref[i]
+for (i in 1:length(indiv_time.aftexpl.dist_to_ref)) {
+  y <- indiv_time.aftexpl.dist_to_ref[i]
   temp_fm <- paste(y,'~ U')
   temp_lm <- lm(as.formula(temp_fm),data=df)
   
   beta_pval <- summary(temp_lm)$coefficients[2,4]
-  betapvals_mthyr.aftexpl.dist_to_expl_on_U <- c(betapvals_mthyr.aftexpl.dist_to_expl_on_U,
+  betapvals_time.aftexpl.dist_to_expl_on_U <- c(betapvals_time.aftexpl.dist_to_expl_on_U,
                                     beta_pval)
 }
 
-sum(betapvals_mthyr.aftexpl.dist_to_expl_on_U < 0.01) / length(betapvals_mthyr.aftexpl.dist_to_expl_on_U)
+sum(betapvals_time.aftexpl.dist_to_expl_on_U < 0.01) / length(betapvals_time.aftexpl.dist_to_expl_on_U)
 
 
 ### Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
@@ -180,18 +193,18 @@ y <- data.matrix(df$lsales)
 n <- length(y)
 X <- cbind(rep(1,n),data.matrix(df %>%
                    select(lprice,
-                          contains('mthyrfe_'),contains('cntyfe_')))
+                          contains('timefe_'),contains('cntyfe_')))
            )
 Z <- cbind(rep(1,n),data.matrix(df %>%
                    select(aftexpl,aftexpl.dist_to_ref,
-                          contains('mthyrfe_'),contains('cntyfe_')))
+                          contains('timefe_'),contains('cntyfe_')))
            )
 
 #### OLS ----
 fm_ols <- 'lsales ~ lprice'
 ols_est <- feols(
   as.formula(fm_ols),
-  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 
@@ -201,20 +214,20 @@ ols_est <- feols(
 #   'lsales ~ ',
 #   'lprice ~',
 #   paste(
-#     mthyr_fe,
+#     time_fe,
 #     cnty_fe,
 #     'aftexpl + aftexpl.dist_to_ref',
 #     sep = '+')
 # )
 fm_tsls <- paste(
   'lsales ~',
-  mthyr_fe,
+  time_fe,
   cnty_fe,
   '| lprice ~', 
   'aftexpl + aftexpl.dist_to_ref')
 tsls_est <- feols(
   as.formula(fm_tsls),
-  # fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  # fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 # tsls.est(y,X,Z,SE=T)
