@@ -1,5 +1,6 @@
 # Last updated: Feb 26, 2023
 
+library(MASS)
 library(tidyverse)
 library(lubridate)
 library(haven)
@@ -12,7 +13,7 @@ library(whitestrap)
 library(fixest)
 library(ivreg)
 library(car)
-library(SteinIV)
+source('3_estimators.R')
 
 # ddir_json <- 
 ddir_matt <- './data/'
@@ -204,10 +205,15 @@ ols_est <- feols(
 #     'aftexpl + aftexpl.dist_to_ref',
 #     sep = '+')
 # )
-fm_tsls <- 'lsales ~ 1 | lprice ~ aftexpl + aftexpl.dist_to_ref'
+fm_tsls <- paste(
+  'lsales ~',
+  mthyr_fe,
+  cnty_fe,
+  '| lprice ~', 
+  'aftexpl + aftexpl.dist_to_ref')
 tsls_est <- feols(
   as.formula(fm_tsls),
-  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  # fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
   data = df
 )
 # tsls.est(y,X,Z,SE=T)
@@ -215,7 +221,7 @@ tsls_est <- feols(
 
 
 #### jive ----
-# using SteinIV package jive.est function
+# from estimators script
 jive.est(y,X,Z,SE=T)
 
 
