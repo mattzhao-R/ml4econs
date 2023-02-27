@@ -48,3 +48,4 @@ jive.internal <- function(y,X,Z){
   B   <- (iXXj)%*%(t(Xj)%*%y);
   return(B)
 }#jive.internal
+

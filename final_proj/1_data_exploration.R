@@ -81,6 +81,8 @@ time <- paste0('t',pre_interact_df$time)
 # yr <- paste0('yr',pre_interact_df$year)
 aftexpl <- pre_interact_df$aftexpl
 aftexpl.dist_to_ref <- pre_interact_df$aftexpl.dist_to_ref
+aftexpl.dist_to_ref_i <- paste0('aftexpl.dist_to_ref',
+                              pre_interact_df$aftexpl.dist_to_ref)
 
 analysis_df <- 
   bind_cols(pre_interact_df,
@@ -88,6 +90,7 @@ analysis_df <-
   data.frame(i(time, ref = T)),
   data.frame(i(time, aftexpl, ref = T)),
   data.frame(i(time, aftexpl.dist_to_ref, ref = T)),
+  data.frame(i(aftexpl.dist_to_ref_i, ref = T)),
   # data.frame(i(mth, i.yr, ref = T)),
   data.frame(i(county, aftexpl, ref = T))
   )

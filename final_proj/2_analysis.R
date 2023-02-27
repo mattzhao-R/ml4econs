@@ -43,10 +43,10 @@ df <- read.csv(file.path(ddir, 'final_data.csv'))[,-1] %>%
 indiv_time_fe <- colnames(df)[str_detect(colnames(df),'timefe_')]
 time_fe <- paste(indiv_time_fe,
                   collapse = ' + ')
-indiv_time.aftexpl <- colnames(df)[str_detect(colnames(df),'time.aftexpl_')]
+indiv_time.aftexpl <- colnames(df)[str_detect(colnames(df),'timefe.aftexpl_')]
 time.aftexpl <- paste(indiv_time.aftexpl,
                        collapse = ' + ')
-indiv_time.aftexpl.dist_to_ref <- colnames(df)[str_detect(colnames(df),'time.aftexpl.dist_to_ref')]
+indiv_time.aftexpl.dist_to_ref <- colnames(df)[str_detect(colnames(df),'timefe.aftexpl.dist_to_ref')]
 time.aftexpl.dist_to_ref <- 
   paste(indiv_time.aftexpl.dist_to_ref,
         collapse = ' + ')
@@ -60,13 +60,15 @@ indiv_cnty.aftexpl <- colnames(df)[str_detect(colnames(df),'cntyfe.aftexpl_')]
 cnty.aftexpl <- paste(indiv_cnty.aftexpl,
                      collapse = ' + ')
 
+### aftexpl.dist dummies ----
+indiv_aftexpl_dummies <- colnames(df)[str_detect(colnames(df), "aftexpl.dist_to_ref\\d+")]
+aftexpl_dummies <- paste0(indiv_aftexpl_dummies, collapse = ' + ')
+
 ## functions ----
 
 
 
 ## preliminary analysis ----
-
-
 
 ### regressions ----
 
@@ -153,7 +155,7 @@ for (i in 1:length(indiv_cnty.aftexpl)) {
 sum(betapvals_aftexpl.cnty_on_U < 0.01) / length(betapvals_aftexpl.cnty_on_U)
 
 
-## regress time.aftexpl, time.aftexpl.dist_to_ref on U
+#### regress time.aftexpl, time.aftexpl.dist_to_ref on U ----
 
 betapvals_time.aftexpl_on_U <- c()
 U <- lm_new_fstg$residuals
@@ -247,14 +249,12 @@ plm_ols <- plm(
 # )
 #### fixest ----
 fm_tsls <- paste(
-  'lsales ~',
-  time_fe,
-  cnty_fe,
-  '| lprice ~', 
-  'aftexpl + aftexpl.dist_to_ref')
+  'lsales ~ ',
+  '1 | lprice ~', 
+  aftexpl_dummies)
 tsls_est <- feols(
   as.formula(fm_tsls),
-  # fixef = c(indiv_time_fe,indiv_cnty_fe),
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 # tsls.est(y,X,Z,SE=T)
