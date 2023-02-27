@@ -54,27 +54,26 @@ cnty.aftexpl <- paste(indiv_cnty.aftexpl,
 
 ### regressions ----
 
-# see if distance to refinery has relevance on its own
+#### see if distance to refinery has relevance on its own ----
 ols_lprice_dist_to_ref_pre_expl <-
   lm(lprice ~ dist_to_refinery,
-     data = df %>% filter(Date > my('Feb 2015')))
+     data = df %>% filter(date > my('Feb 2015')))
 
 stargazer(ols_lprice_dist_to_ref_pre_expl,
           type='latex',digits=3, column.sep.width = "5pt",
           dep.var.labels.include = F,
           title='Log Price vs Distance to Refinery')
 
-ols_base <- feols(lsales ~ lprice, 
-                  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
-                  data = df)
+# ols_base <- feols(lsales ~ lprice, 
+#                   fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+#                   data = df)
+# 
+# etable(ols_base,
+#        tex = T,
+#        title = 'Baseline Regressions')
 
-etable(ols_base,
-       tex = T,
-       title = 'Baseline Regressions')
 
-
-# testing if county has effect
-## saturated first stage
+#### saturated first stage ----
 fm <- paste(
   'lprice ~ ',
   paste(
@@ -107,7 +106,7 @@ lm_new_fstg_wmthyr.aftexpl <- feols(
   data = df
 )
 
-etable(lm_county_test,lm_new_fstg,lm_new_fstg_wmthyr.aftexpl,
+etable(lm_old_fstg,lm_new_fstg,lm_new_fstg_wmthyr.aftexpl,
        tex = T,
        title = 'First Stages',
        fitstat = 'f',
@@ -173,22 +172,69 @@ for (i in 1:length(indiv_mthyr.aftexpl.dist_to_ref)) {
 sum(betapvals_mthyr.aftexpl.dist_to_expl_on_U < 0.01) / length(betapvals_mthyr.aftexpl.dist_to_expl_on_U)
 
 
-### Other Estimators (Post-Lasso, JIVE, RJIVE) ----
+### Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
 
-#### Post Lasso ----
+y <- data.matrix(df$lsales)
+n <- length(y)
+X <- cbind(rep(1,n),data.matrix(df %>%
+                   select(lprice,
+                          contains('mthyrfe_'),contains('cntyfe_')))
+           )
+Z <- cbind(rep(1,n),data.matrix(df %>%
+                   select(aftexpl,aftexpl.dist_to_ref,
+                          contains('mthyrfe_'),contains('cntyfe_')))
+           )
+
+#### OLS ----
+fm_ols <- 'lsales ~ lprice'
+ols_est <- feols(
+  as.formula(fm_ols),
+  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  data = df
+)
+
+#### TSLS ----
+# X_hat <- lm_new_fstg$fitted.values
+# fm_tsls <- paste(
+#   'lsales ~ ',
+#   'lprice ~',
+#   paste(
+#     mthyr_fe,
+#     cnty_fe,
+#     'aftexpl + aftexpl.dist_to_ref',
+#     sep = '+')
+# )
+fm_tsls <- 'lsales ~ 1 | lprice ~ aftexpl + aftexpl.dist_to_ref'
+tsls_est <- feols(
+  as.formula(fm_tsls),
+  fixef = c(indiv_mthyr_fe,indiv_cnty_fe),
+  data = df
+)
+# tsls.est(y,X,Z,SE=T)
+
 
 
 #### jive ----
 # using SteinIV package jive.est function
-y <- data.matrix(df$lsales)
-X <- data.matrix(df %>%
-  select(lprice,contains('mthyrfe_'),contains('cntyfe_')))
-Z <- data.matrix(df %>%
-  select(aftexpl,aftexpl.dist_to_ref,contains('mthyrfe_'),contains('cntyfe_')))
-jive.est(y,X,Z)
+jive.est(y,X,Z,SE=T)
 
 
 #### rjive ----
+
+
+
+#### Post Lasso ----
+
+
+
+#### Table ----
+
+etable(ols_est,tsls_est,
+       tex = T,
+       title = 'Main Results',
+       fitstat = 'f',
+       style.tex = style.tex('aer')
+       )
 
 ### graphs ----
 
