@@ -89,7 +89,7 @@ stargazer(ols_lprice_dist_to_ref_pre_expl,
 #        title = 'Baseline Regressions')
 
 
-#### saturated first stage ----
+#### saturated first stage (fixest) ----
 fm <- paste(
   'lprice ~ ',
   paste(
@@ -187,7 +187,23 @@ for (i in 1:length(indiv_time.aftexpl.dist_to_ref)) {
 sum(betapvals_time.aftexpl.dist_to_expl_on_U < 0.01) / length(betapvals_time.aftexpl.dist_to_expl_on_U)
 
 
-### Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
+
+
+#### first stage (plm) ----
+fstg_plm_fm <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
+plm_fstg <- plm(
+  formula = as.formula(fstg_plm_fm),
+  data = df,
+  effect = 'twoways',
+  model = 'random'
+)
+
+stargazer(plm_fstg,
+          type='latex',digits=3, column.sep.width = "5pt",
+          title='PLM First Stage with Random Effects')
+
+
+## Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
 
 y <- data.matrix(df$lsales)
 n <- length(y)
@@ -200,7 +216,8 @@ Z <- cbind(rep(1,n),data.matrix(df %>%
                           contains('timefe_'),contains('cntyfe_')))
            )
 
-#### OLS ----
+### OLS ----
+#### fixest ----
 fm_ols <- 'lsales ~ lprice'
 ols_est <- feols(
   as.formula(fm_ols),
@@ -208,7 +225,16 @@ ols_est <- feols(
   data = df
 )
 
-#### TSLS ----
+#### plm ----
+ols_plm_fm <- 'lsales ~ lprice'
+plm_ols <- plm(
+  formula = as.formula(ols_plm_fm),
+  data = df,
+  effect = 'twoways',
+  model = 'random'
+)
+
+### TSLS ----
 # X_hat <- lm_new_fstg$fitted.values
 # fm_tsls <- paste(
 #   'lsales ~ ',
@@ -219,6 +245,7 @@ ols_est <- feols(
 #     'aftexpl + aftexpl.dist_to_ref',
 #     sep = '+')
 # )
+#### fixest ----
 fm_tsls <- paste(
   'lsales ~',
   time_fe,
@@ -234,27 +261,42 @@ tsls_est <- feols(
 
 
 
-#### jive ----
+#### plm ----
+tsls_plm_fm <- 'lsales ~ lprice | aftexpl + aftexpl.dist_to_ref'
+plm_tsls <- plm(
+  formula = as.formula(tsls_plm_fm),
+  data = df,
+  effect = 'time',
+  model = 'random'
+) #NOTE: PLM TSLS did not run with twoway (error: twoway not supported)
+
+### jive ----
 # from estimators script
 jive.est(y,X,Z,SE=T)
 
 
-#### rjive ----
+### rjive ----
 
 
 
-#### Post Lasso ----
+### Post Lasso ----
 
 
 
-#### Table ----
-
+### Tables ----
+#### fixest ----
 etable(ols_est,tsls_est,
        tex = T,
        title = 'Main Results',
        fitstat = 'f',
        style.tex = style.tex('aer')
        )
+
+#### plm ----
+stargazer(plm_ols,plm_tsls,
+          type='latex',digits=3, column.sep.width = "5pt",
+          title='PLM Main Results')
+
 
 ### graphs ----
 
