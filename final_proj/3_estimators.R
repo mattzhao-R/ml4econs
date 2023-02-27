@@ -1,3 +1,5 @@
+# Last updated: Feb 27, 2023
+
 ##################################################
 ### JIVE
 jive.est <- function(y,X,Z,SE=FALSE,n.bt=100){

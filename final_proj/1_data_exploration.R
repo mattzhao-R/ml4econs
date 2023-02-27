@@ -5,12 +5,9 @@ library(lubridate)
 library(haven)
 library(stargazer)
 library(xtable)
-library(lmtest)
-library(sandwich)
 library(broom)
-library(whitestrap)
 library(fixest)
-library(ivreg)
+library(whitestrap)
 library(car)
 
 # ddir_json <- 
@@ -68,11 +65,18 @@ m_merged_df <- make_covariates(temp)
 ### adding FEs and interactions ----
 
 pre_interact_df <- m_merged_df %>%
-  mutate(aftexpl.dist_to_ref = dist_to_refinery * aftexpl) %>%
+  mutate(aftexpl.dist_to_ref = dist_to_refinery * aftexpl,
+         time = as.character(year * 100 + month)) %>%
   rename(date = Date) %>%
-  ungroup()
+  ungroup() %>%
+  select(county,time,everything())
+time_map <- setNames(seq(1,length(unique(pre_interact_df$time))), 
+                     unique(pre_interact_df$time))
+pre_interact_df$time <- time_map[pre_interact_df$time]
+
 
 county <- pre_interact_df$county
+time <- paste0('t',pre_interact_df$time)
 mth <- paste0('mth',pre_interact_df$month)
 yr <- paste0('yr',pre_interact_df$year)
 aftexpl <- pre_interact_df$aftexpl
@@ -81,6 +85,7 @@ aftexpl.dist_to_ref <- pre_interact_df$aftexpl.dist_to_ref
 analysis_df <- 
   bind_cols(pre_interact_df,
   data.frame(i(county, ref = T)),
+  data.frame(i(time, ref = T)),
   data.frame(i(mth, i.yr, ref = T)),
   data.frame(i(county, aftexpl, ref = T))
   )
