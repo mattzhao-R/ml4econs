@@ -26,7 +26,7 @@ df <- read.csv(file.path(ddir, 'final_data.csv'))[,-1] %>%
 
 ## variable column extraction ----
 
-# ### mthyr fe + instrument int ----
+#### mthyr fe + instrument int ----
 # indiv_mthyr_fe <- colnames(df)[str_detect(colnames(df),'mthyrfe_')]
 # mthyr_fe <- paste(indiv_mthyr_fe,
 #                 collapse = ' + ')
@@ -204,6 +204,14 @@ stargazer(plm_fstg,
           type='latex',digits=3, column.sep.width = "5pt",
           title='PLM First Stage with Random Effects')
 
+
+#### lprice ~ fixed effects ----
+model <- feols(
+  lprice ~ 1,
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
+  data = df
+)
+model$residuals
 
 ## Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
 
