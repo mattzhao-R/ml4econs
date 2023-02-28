@@ -115,9 +115,11 @@ cn <- colnames(analysis_df)
 #### time fe + interaction w instrument
 
 timefe_allint <- cn[str_detect(cn, "^t\\d+")]
-timefe <- timefe_allint[1:83]
-timefe.aftexpl <- timefe_allint[84:166]
-timefe.aftexpl.dist_to_ref <- timefe_allint[167:249]
+timefe <- timefe_allint[1:length(timefe_allint)/3]
+timefe.aftexpl <- timefe_allint[((length(timefe_allint)/3) + 1):
+                                  2 * length(timefe_allint)]
+timefe.aftexpl.dist_to_ref <- timefe_allint[(2 * length(timefe_allint) + 1):
+                                              length(timefe_allint)]
 
 
 timefe_pos <- match(timefe, cn)
@@ -125,38 +127,48 @@ timefe_names <- paste0('timefe_',str_extract(timefe,"^t\\d+"))
 colnames(analysis_df)[timefe_pos] <- timefe_names
 
 timefe.aftexpl_pos <- match(timefe.aftexpl, cn)
-timefe.aftexpl_names <- paste0('timefe.aftexpl_',str_extract(timefe.aftexpl,"^t\\d+"))
+timefe.aftexpl_names <- paste0('timefe.aftexpl_',
+                               str_extract(timefe.aftexpl,"^t\\d+"))
 colnames(analysis_df)[timefe.aftexpl_pos] <- timefe.aftexpl_names
 
 timefe.aftexpl.dist_to_ref_pos <- match(timefe.aftexpl.dist_to_ref, cn)
 timefe.aftexpl.dist_to_ref_names <- paste0('timefe.aftexpl.dist_to_ref_',
-                                           str_extract(timefe.aftexpl.dist_to_ref,
-                                                       "^t\\d+"))
-colnames(analysis_df)[timefe.aftexpl.dist_to_ref_pos] <- timefe.aftexpl.dist_to_ref_names
+                                           str_extract(
+                                             timefe.aftexpl.dist_to_ref,
+                                             "^t\\d+"))
+colnames(analysis_df)[timefe.aftexpl.dist_to_ref_pos] <- 
+  timefe.aftexpl.dist_to_ref_names
 
 
 
 #### county fe + interaction w instrument
 
-cntyfe_allint <- colnames(analysis_df)[str_detect(colnames(analysis_df), "^[A-Z]")]
-cntyfe <- cntyfe_allint[1:55]
-cntyfe.aftexpl <- cntyfe_allint[56:110]
+cntyfe_allint <- colnames(analysis_df)[str_detect(colnames(analysis_df), 
+                                                  "^[A-Z]")]
+cntyfe <- cntyfe_allint[1:length(cntyfe_allint)/2]
+cntyfe.aftexpl <- cntyfe_allint[(length(cntyfe_allint)/2 + 1):
+                                  length(cntyfe_allint)]
 
 cntyfe_pos <- match(cntyfe, colnames(analysis_df))
 cntyfe_names <- paste0('cntyfe_',
-                       str_extract_all(cntyfe,
-                                       "[[:alpha:]]+(?:\\.[[:alpha:]]+)?+(?:\\.[[:alpha:]]+)?"))
+                       str_extract_all(
+                         cntyfe,
+                         "[[:alpha:]]+(?:\\.[[:alpha:]]+)?+(?:\\.[[:alpha:]]+)?"
+                         ))
 colnames(analysis_df)[cntyfe_pos] <- cntyfe_names
 
 cntyfe.aftexpl_pos <- match(cntyfe.aftexpl, colnames(analysis_df))
 cntyfe.aftexpl_names <- paste0('cntyfe.aftexpl_',
-                       str_extract_all(cntyfe.aftexpl,
-                                       "[[:alpha:]]+(?:\\.[[:alpha:]]+)?+(?:\\.[[:alpha:]]+)?"))
+                       str_extract_all(
+                         cntyfe.aftexpl,
+                         "[[:alpha:]]+(?:\\.[[:alpha:]]+)?+(?:\\.[[:alpha:]]+)?"
+                         ))
 colnames(analysis_df)[cntyfe.aftexpl_pos] <- cntyfe.aftexpl_names
 
 # #### creating month-year.instrument interactions
 # 
-# mthyrfe_colnames <- colnames(analysis_df)[str_detect(colnames(analysis_df), "mthyrfe")]
+# mthyrfe_colnames <- colnames(analysis_df)[str_detect(
+#   colnames(analysis_df), "mthyrfe")]
 # 
 # mthyr.aftexpl_df <- analysis_df %>% 
 #   select(year,month,county,aftexpl,aftexpl.dist_to_ref,
