@@ -67,14 +67,9 @@ cnty.aftexpl <- paste(indiv_cnty.aftexpl,
 indiv_aftexpl.dist_dummies <- colnames(df)[str_detect(colnames(df), "aftexpl.dist_to_ref\\d+")]
 aftexpl.dist_dummies <- paste0(indiv_aftexpl.dist_dummies, collapse = ' + ')
 
-## functions ----
-
-
-
 ## preliminary analysis ----
 
 ### regressions ----
-
 #### see if distance to refinery has relevance on its own ----
 ols_lprice_dist_to_ref_pre_expl <-
   lm(lprice ~ dist_to_refinery,
@@ -94,51 +89,48 @@ stargazer(ols_lprice_dist_to_ref_pre_expl,
 #        title = 'Baseline Regressions')
 
 
-#### saturated first stage (fixest) ----
-fm <- paste(
-  'lprice ~ ',
-  paste(
-    time.aftexpl,
-    time.aftexpl.dist_to_ref,
-    'aftexpl + aftexpl.dist_to_ref',
-    sep = '+')
-)
-lm_old_fstg <- feols(
-  as.formula(fm),
-  fixef = c(indiv_time_fe,indiv_cnty_fe),
-  data = df
-)
-fm2 <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
-lm_new_fstg <- feols(
-  as.formula(fm2),
-  fixef = c(indiv_time_fe,indiv_cnty_fe),
-  data = df
-)
-fm3 <- paste(
-  'lprice ~ ',
-  paste(
-    time.aftexpl,
-    'aftexpl + aftexpl.dist_to_ref',
-    sep = '+')
-)
-lm_new_fstg_wtime.aftexpl <- feols(
-  as.formula(fm3),
-  fixef = c(indiv_time_fe,indiv_cnty_fe),
-  data = df
-)
+#### first stage ----
 
-etable(lm_old_fstg,lm_new_fstg,lm_new_fstg_wtime.aftexpl,
+fstg_fm <- paste(
+  'lprice ~',
+  aftexpl.dist_dummies
+)
+lm_fstg <- feols(
+  as.formula(fstg_fm),
+  fixef = c(indiv_time_fe,indiv_cnty_fe),
+  data = df
+)
+# fm2 <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
+# lm_new_fstg <- feols(
+#   as.formula(fm2),
+#   fixef = c(indiv_time_fe,indiv_cnty_fe),
+#   data = df
+# )
+# fm3 <- paste(
+#   'lprice ~ ',
+#   paste(
+#     time.aftexpl,
+#     'aftexpl + aftexpl.dist_to_ref',
+#     sep = '+')
+# )
+# lm_new_fstg_wtime.aftexpl <- feols(
+#   as.formula(fm3),
+#   fixef = c(indiv_time_fe,indiv_cnty_fe),
+#   data = df
+# )
+
+etable(lm_fstg,
        tex = T,
-       title = 'First Stages',
-       fitstat = 'f',
+       title = 'First Stage',
+       fitstat = c('n','wf.stat'),
        style.tex = style.tex('aer'))
 
 
-# checking for interaction significance in first stage (ovb)
-## regress aftexpl.county on U (fstg residuals) 
+#### checking for interaction significance in first stage (ovb) ----
+##### regress aftexpl.county on U (fstg residuals) ----
 
 betapvals_aftexpl.cnty_on_U <- c()
-U <- lm_new_fstg$residuals
+U <- lm_fstg$residuals
 # beta <- c()
 
 for (i in 1:length(indiv_cnty.aftexpl)) {
@@ -158,10 +150,10 @@ for (i in 1:length(indiv_cnty.aftexpl)) {
 sum(betapvals_aftexpl.cnty_on_U < 0.01) / length(betapvals_aftexpl.cnty_on_U)
 
 
-#### regress time.aftexpl, time.aftexpl.dist_to_ref on U ----
+##### regress time.aftexpl, time.aftexpl.dist_to_ref on U ----
 
 betapvals_time.aftexpl_on_U <- c()
-U <- lm_new_fstg$residuals
+U <- lm_fstg$residuals
 
 for (i in 1:length(indiv_time.aftexpl)) {
   y <- indiv_time.aftexpl[i]
@@ -173,11 +165,13 @@ for (i in 1:length(indiv_time.aftexpl)) {
                                    beta_pval)
 }
 
-sum(betapvals_time.aftexpl_on_U < 0.01) / length(betapvals_time.aftexpl_on_U)
+sum(
+  betapvals_time.aftexpl_on_U[!is.na(betapvals_time.aftexpl_on_U)] < 0.01
+  ) 
 
 
 betapvals_time.aftexpl.dist_to_expl_on_U <- c()
-U <- lm_new_fstg$residuals
+U <- lm_fstg$residuals
 
 for (i in 1:length(indiv_time.aftexpl.dist_to_ref)) {
   y <- indiv_time.aftexpl.dist_to_ref[i]
@@ -189,23 +183,25 @@ for (i in 1:length(indiv_time.aftexpl.dist_to_ref)) {
                                     beta_pval)
 }
 
-sum(betapvals_time.aftexpl.dist_to_expl_on_U < 0.01) / length(betapvals_time.aftexpl.dist_to_expl_on_U)
+sum(
+  betapvals_time.aftexpl.dist_to_expl_on_U[!is.na(betapvals_time.aftexpl.dist_to_expl_on_U)] < 0.01
+  )
 
 
 
 
-#### first stage (plm) ----
-fstg_plm_fm <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
-plm_fstg <- plm(
-  formula = as.formula(fstg_plm_fm),
-  data = df,
-  effect = 'twoways',
-  model = 'random'
-)
-
-stargazer(plm_fstg,
-          type='latex',digits=3, column.sep.width = "5pt",
-          title='PLM First Stage with Random Effects')
+#### first stage (plm) 
+# fstg_plm_fm <- 'lprice ~ aftexpl + aftexpl.dist_to_ref'
+# plm_fstg <- plm(
+#   formula = as.formula(fstg_plm_fm),
+#   data = df,
+#   effect = 'twoways',
+#   model = 'random'
+# )
+# 
+# stargazer(plm_fstg,
+#           type='latex',digits=3, column.sep.width = "5pt",
+#           title='PLM First Stage with Random Effects')
 
 
 #### lprice ~ fixed effects ----
@@ -287,27 +283,17 @@ X <- data.matrix(
   partialled_df %>%
     dplyr::select(lprice,contains('timefe_'))
 )
-# X <- cbind(data.matrix(
-#   partialled_df %>%
-#     dplyr::select(lprice,
-#            contains('timefe_'),contains('cntyfe_')))
-# )
 Z <- data.matrix(
   partialled_df %>%
     dplyr::select(starts_with('aftexpl.dist_to_ref'),
                   contains('timefe_'))
   )
-# Z <- cbind(data.matrix(
-#   partialled_df %>%
-#     dplyr::select(starts_with('aftexpl.dist_to_ref'),
-#            contains('timefe_'),contains('cntyfe_')))
-# )
 
 jive_est <- jive.est(y,X,Z,SE=T)
 jive_pointest <- jive_est[[1]][[1]]
 jive_se <- jive_est[[2]][[1]]
 jive_tstat <- jive_pointest / jive_se
-jive_pval <- pt(abs(jive_tstat),df=n-1,lower.tail = F)
+jive_pval <- pt(abs(jive_tstat),df=n-84-138-1,lower.tail = F)
 
 ### rjive ----
 
@@ -318,15 +304,15 @@ jive_pval <- pt(abs(jive_tstat),df=n-1,lower.tail = F)
 
 
 ### Tables ----
-#### fixest ----
-etable(ols_est,tsls_est,
+#### main results ----
+etable(ols_est,tsls_est,ols_est,ols_est,
        tex = T,
        title = 'Main Results',
-       fitstat = 'f',
+       fitstat = c('n','ivf1','ivwald'),
        style.tex = style.tex('aer')
        )
 
-#### plm ----
+#### plm 
 # stargazer(plm_ols,plm_tsls,
 #           type='latex',digits=3, column.sep.width = "5pt",
 #           title='Main Results')
