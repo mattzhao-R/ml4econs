@@ -1,6 +1,7 @@
 # Last updated: Feb 27, 2023
 
 library(MASS)
+library(data.table)
 library(tidyverse)
 library(lubridate)
 library(haven)
@@ -214,18 +215,6 @@ model <- feols(
 model$residuals
 
 ## Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
-
-y <- data.matrix(df$lsales)
-n <- length(y)
-X <- cbind(rep(1,n),data.matrix(df %>%
-                   select(lprice,
-                          contains('timefe_'),contains('cntyfe_')))
-           )
-Z <- cbind(rep(1,n),data.matrix(df %>%
-                   select(aftexpl,aftexpl.dist_to_ref,
-                          contains('timefe_'),contains('cntyfe_')))
-           )
-
 ### OLS ----
 #### fixest ----
 fm_ols <- 'lsales ~ lprice'
@@ -245,16 +234,6 @@ plm_ols <- plm(
 )
 
 ### TSLS ----
-# X_hat <- lm_new_fstg$fitted.values
-# fm_tsls <- paste(
-#   'lsales ~ ',
-#   'lprice ~',
-#   paste(
-#     time_fe,
-#     cnty_fe,
-#     'aftexpl + aftexpl.dist_to_ref',
-#     sep = '+')
-# )
 #### fixest ----
 fm_tsls <- paste(
   'lsales ~ ',
@@ -265,9 +244,6 @@ tsls_est <- feols(
   fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
-# tsls.est(y,X,Z,SE=T)
-
-
 
 #### plm ----
 tsls_plm_fm <- 'lsales ~ lprice | aftexpl + aftexpl.dist_to_ref'
@@ -280,8 +256,21 @@ plm_tsls <- plm(
 
 ### jive ----
 # from estimators script
-jive.est(y,X,Z,SE=T)
+y <- data.matrix(df$lsales)
+n <- length(y)
+X <- cbind(data.matrix(
+  df %>%
+    dplyr::select(lprice,
+           contains('timefe_'),contains('cntyfe_')))
+)
+Z <- cbind(data.matrix(
+  df %>%
+    dplyr::select(starts_with('aftexpl.dist_to_ref'),
+           contains('timefe_'),contains('cntyfe_')))
+)
 
+jive_est <- jive.est(y,X,Z,SE=T)
+jive_est[[1]]
 
 ### rjive ----
 
@@ -301,20 +290,12 @@ etable(ols_est,tsls_est,
        )
 
 #### plm ----
-stargazer(plm_ols,plm_tsls,
-          type='latex',digits=3, column.sep.width = "5pt",
-          title='PLM Main Results')
+# stargazer(plm_ols,plm_tsls,
+#           type='latex',digits=3, column.sep.width = "5pt",
+#           title='Main Results')
 
 
-### graphs ----
+### Graphs ----
 
-# Dingel Plot (looks bad)
-ggplot(data = df, 
-       mapping = aes(
-         x = aftexpl + aftexpl.dist_to_ref,
-         y = lprice),
-       ) +
-  geom_point()
-  
 
 
