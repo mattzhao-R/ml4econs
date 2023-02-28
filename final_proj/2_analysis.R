@@ -267,20 +267,25 @@ cnty_means <- noint_df %>%
   summarise(across(!county,mean), .groups='keep')
 temp <- left_join(noint_df,cnty_means, by = 'time',
                  suffix = c('','_means'))
-partialled_df <- temp %>%
+p_temp <- temp %>%
   select(!contains('_means'))
 for (col in colnames(temp)) {
   if ((col != 'county') & (col != 'time') & (!str_detect(col,'_means'))){
-    partialled_df[,col] <- 
+    p_temp[,col] <- 
       (temp %>% select(all_of(col))) - (temp %>% select(contains(paste0(col,'_means'))))
   }
 }
+partialled_df <- bind_cols(
+  p_temp,
+  df %>% select(contains('timefe_'))
+)
+# write.csv(partialled_df,file.path(ddir,'partialled_noint.csv'))
 
 y <- data.matrix(partialled_df$lsales)
 n <- length(y)
 X <- data.matrix(
   partialled_df %>%
-    dplyr::select(lprice)
+    dplyr::select(lprice,contains('timefe_'))
 )
 # X <- cbind(data.matrix(
 #   partialled_df %>%
@@ -289,7 +294,8 @@ X <- data.matrix(
 # )
 Z <- data.matrix(
   partialled_df %>%
-    dplyr::select(starts_with('aftexpl.dist_to_ref'))
+    dplyr::select(starts_with('aftexpl.dist_to_ref'),
+                  contains('timefe_'))
   )
 # Z <- cbind(data.matrix(
 #   partialled_df %>%
