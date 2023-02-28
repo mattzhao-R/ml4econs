@@ -1,7 +1,9 @@
-# Last updated: Feb 27, 2023
+# Last updated: Feb 28, 2023
 
 library(MASS)
 library(data.table)
+library(glmnet)
+library(hdm) 
 library(tidyverse)
 library(lubridate)
 library(haven)
@@ -62,8 +64,8 @@ cnty.aftexpl <- paste(indiv_cnty.aftexpl,
                      collapse = ' + ')
 
 ### aftexpl.dist dummies ----
-indiv_aftexpl_dummies <- colnames(df)[str_detect(colnames(df), "aftexpl.dist_to_ref\\d+")]
-aftexpl_dummies <- paste0(indiv_aftexpl_dummies, collapse = ' + ')
+indiv_aftexpl.dist_dummies <- colnames(df)[str_detect(colnames(df), "aftexpl.dist_to_ref\\d+")]
+aftexpl.dist_dummies <- paste0(indiv_aftexpl.dist_dummies, collapse = ' + ')
 
 ## functions ----
 
@@ -216,7 +218,7 @@ model$residuals
 
 ## Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
 ### OLS ----
-#### fixest ----
+#### fixest 
 fm_ols <- 'lsales ~ lprice'
 ols_est <- feols(
   as.formula(fm_ols),
@@ -224,7 +226,7 @@ ols_est <- feols(
   data = df
 )
 
-#### plm ----
+#### plm 
 ols_plm_fm <- 'lsales ~ lprice'
 plm_ols <- plm(
   formula = as.formula(ols_plm_fm),
@@ -234,18 +236,18 @@ plm_ols <- plm(
 )
 
 ### TSLS ----
-#### fixest ----
+#### fixest 
 fm_tsls <- paste(
   'lsales ~ ',
   '1 | lprice ~', 
-  aftexpl_dummies)
+  aftexpl.dist_dummies)
 tsls_est <- feols(
   as.formula(fm_tsls),
   fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
 
-#### plm ----
+#### plm 
 tsls_plm_fm <- 'lsales ~ lprice | aftexpl + aftexpl.dist_to_ref'
 plm_tsls <- plm(
   formula = as.formula(tsls_plm_fm),
@@ -256,21 +258,50 @@ plm_tsls <- plm(
 
 ### jive ----
 # from estimators script
-y <- data.matrix(df$lsales)
+## manually demeaning variables for FE-IV
+noint_df <- df %>%
+  select(county,time,lprice,lsales,
+         matches("aftexpl.dist_to_ref\\d+"))
+cnty_means <- noint_df %>%
+  group_by(time) %>%
+  summarise(across(!county,mean), .groups='keep')
+temp <- left_join(noint_df,cnty_means, by = 'time',
+                 suffix = c('','_means'))
+partialled_df <- temp %>%
+  select(!contains('_means'))
+for (col in colnames(temp)) {
+  if ((col != 'county') & (col != 'time') & (!str_detect(col,'_means'))){
+    partialled_df[,col] <- 
+      (temp %>% select(all_of(col))) - (temp %>% select(contains(paste0(col,'_means'))))
+  }
+}
+
+y <- data.matrix(partialled_df$lsales)
 n <- length(y)
-X <- cbind(data.matrix(
-  df %>%
-    dplyr::select(lprice,
-           contains('timefe_'),contains('cntyfe_')))
+X <- data.matrix(
+  partialled_df %>%
+    dplyr::select(lprice)
 )
-Z <- cbind(data.matrix(
-  df %>%
-    dplyr::select(starts_with('aftexpl.dist_to_ref'),
-           contains('timefe_'),contains('cntyfe_')))
-)
+# X <- cbind(data.matrix(
+#   partialled_df %>%
+#     dplyr::select(lprice,
+#            contains('timefe_'),contains('cntyfe_')))
+# )
+Z <- data.matrix(
+  partialled_df %>%
+    dplyr::select(starts_with('aftexpl.dist_to_ref'))
+  )
+# Z <- cbind(data.matrix(
+#   partialled_df %>%
+#     dplyr::select(starts_with('aftexpl.dist_to_ref'),
+#            contains('timefe_'),contains('cntyfe_')))
+# )
 
 jive_est <- jive.est(y,X,Z,SE=T)
-jive_est[[1]]
+jive_pointest <- jive_est[[1]][[1]]
+jive_se <- jive_est[[2]][[1]]
+jive_tstat <- jive_pointest / jive_se
+jive_pval <- pt(abs(jive_tstat),df=n-1,lower.tail = F)
 
 ### rjive ----
 
