@@ -68,7 +68,6 @@ indiv_aftexpl.dist_dummies <- colnames(df)[str_detect(colnames(df), "aftexpl.dis
 aftexpl.dist_dummies <- paste0(indiv_aftexpl.dist_dummies, collapse = ' + ')
 
 ## preliminary analysis ----
-
 ### regressions ----
 #### see if distance to refinery has relevance on its own ----
 ols_lprice_dist_to_ref_pre_expl <-
@@ -119,6 +118,7 @@ lm_fstg <- feols(
 #   data = df
 # )
 
+fitstat(lm_fstg,'wald')
 etable(lm_fstg,
        tex = T,
        title = 'First Stage',
@@ -210,7 +210,16 @@ model <- feols(
   fixef = c(indiv_time_fe,indiv_cnty_fe),
   data = df
 )
-model$residuals
+# write.csv(data.frame(residuals=model$residuals),
+#           'data/price_fe_residuals.csv')
+
+
+#### lprice ~ aftexpl.dist dummies ----
+model2 <- feols(
+  as.formula(paste('lprice ~', aftexpl.dist_dummies)),
+  data = df %>% mutate(lprice = model$residuals)
+)
+fitstat(model2,'f')
 
 ## Estimators (OLS, TSLS, JIVE, RJIVE, Post-Lasso) ----
 ### OLS ----
@@ -243,14 +252,14 @@ tsls_est <- feols(
   data = df
 )
 
-#### plm 
-tsls_plm_fm <- 'lsales ~ lprice | aftexpl + aftexpl.dist_to_ref'
-plm_tsls <- plm(
-  formula = as.formula(tsls_plm_fm),
-  data = df,
-  effect = 'time',
-  model = 'random'
-) #NOTE: PLM TSLS did not run with twoway (error: twoway not supported)
+# #### plm 
+# tsls_plm_fm <- 'lsales ~ lprice | aftexpl + aftexpl.dist_to_ref'
+# plm_tsls <- plm(
+#   formula = as.formula(tsls_plm_fm),
+#   data = df,
+#   effect = 'time',
+#   model = 'random'
+# ) #NOTE: PLM TSLS did not run with twoway (error: twoway not supported)
 
 ### jive ----
 # from estimators script
@@ -294,6 +303,11 @@ jive_pointest <- jive_est[[1]][[1]]
 jive_se <- jive_est[[2]][[1]]
 jive_tstat <- jive_pointest / jive_se
 jive_pval <- pt(abs(jive_tstat),df=n-84-138-1,lower.tail = F)
+jive_res <- y - (X %*% jive_est$est)
+# write.csv(bind_cols(data.frame(residuals=jive_res),
+#                     partialled_df),
+#           'data/jive_residuals.csv')
+
 
 ### rjive ----
 
@@ -301,7 +315,16 @@ jive_pval <- pt(abs(jive_tstat),df=n-84-138-1,lower.tail = F)
 
 ### Post Lasso ----
 
-
+## tests ----
+### durbin watson AR1 ----
+dwt_pvals <- c()
+for (cnty in df$county) {
+  t_df <- df %>%
+    filter(county == cnty)
+  dwt_results <- durbinWatsonTest(
+    lm(lprice ~ time,data=t_df),alt='positive')
+  dwt_pvals <- c(dwt_pvals,dwt_results[['p']])
+}
 
 ### Tables ----
 #### main results ----
