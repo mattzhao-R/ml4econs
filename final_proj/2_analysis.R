@@ -2,6 +2,7 @@
 
 library(MASS)
 library(data.table)
+library(hdm)
 library(tidyverse)
 library(lubridate)
 library(haven)
@@ -312,6 +313,37 @@ jive_res <- y - (X %*% jive_est$est)
 
 
 ### Post Lasso ----
+y <- data.matrix(df$lsales)
+n <- length(y)
+d <- data.matrix(
+  df %>%
+    dplyr::select(lprice)
+)
+x <- data.matrix(
+  df %>%
+    dplyr::select(contains('timefe_'),contains('cntyfe_'))
+)
+z <- data.matrix(
+  df %>%
+    dplyr::select(matches('aftexpl.dist_to_ref\\d+'))
+)
+
+# postlassoIV_est <- rlassoIV(x,d,y,z,select.Z = T,select.X = F,
+#                         post = T)
+PLIV_fm <- paste(
+  'lsales ~',
+  'lprice +',
+  time_fe,'+',
+  cnty_fe,'|',
+  aftexpl_dummies,'+',
+  time_fe,'+',
+  cnty_fe
+)
+postlassoIV_est <- rlassoIV(as.formula(PLIV_fm),
+                            data = df,
+                            select.Z = T,select.X = F,
+                            post = T)
+
 
 ## tests ----
 ### durbin watson AR1 ----

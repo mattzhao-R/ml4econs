@@ -55,5 +55,5 @@ jive.internal <- function(y,X,Z){
 
 
 #### post lasso ----
-# see ipynb
+# see ipynb + section in analysis using hdm
 
