@@ -309,40 +309,50 @@ jive_res <- y - (X %*% jive_est$est)
 
 
 ### rjive ----
-
-
-
-### Post Lasso ----
 y <- data.matrix(df$lsales)
 n <- length(y)
-d <- data.matrix(
-  df %>%
-    dplyr::select(lprice)
-)
 x <- data.matrix(
   df %>%
-    dplyr::select(contains('timefe_'),contains('cntyfe_'))
+    dplyr::select(lprice,contains('timefe_'),contains('cntyfe_'))
 )
 z <- data.matrix(
   df %>%
+    dplyr::select(matches('aftexpl.dist_to_ref\\d+'),contains('timefe_'),contains('cntyfe_'))
+)
+
+rjive_results = RJIVE_function(y,x,z,df)
+
+### Post Lasso ----
+y <- data.matrix(partialled_df$lsales)
+n <- length(y)
+d <- data.matrix(
+  partialled_df %>%
+    dplyr::select(lprice)
+)
+x <- data.matrix(
+  partialled_df %>%
+    dplyr::select(contains('timefe_'))
+)
+z <- data.matrix(
+  partialled_df %>%
     dplyr::select(matches('aftexpl.dist_to_ref\\d+'))
 )
 
-# postlassoIV_est <- rlassoIV(x,d,y,z,select.Z = T,select.X = F,
-#                         post = T)
-PLIV_fm <- paste(
-  'lsales ~',
-  'lprice +',
-  time_fe,'+',
-  cnty_fe,'|',
-  aftexpl_dummies,'+',
-  time_fe,'+',
-  cnty_fe
-)
-postlassoIV_est <- rlassoIV(as.formula(PLIV_fm),
-                            data = df,
-                            select.Z = T,select.X = F,
-                            post = T)
+postlassoIV_est <- rlassoIV(x,d,y,z,select.Z = T,select.X = F,
+                        post = T)
+# PLIV_fm <- paste(
+#   'lsales ~',
+#   'lprice +',
+#   time_fe,'+',
+#   cnty_fe,'|',
+#   aftexpl.dist_dummies,'+',
+#   time_fe,'+',
+#   cnty_fe
+# )
+# postlassoIV_est <- rlassoIV(as.formula(PLIV_fm),
+#                             data = df,
+#                             select.Z = T,select.X = F,
+#                             post = T)
 
 
 ## tests ----
@@ -366,9 +376,10 @@ etable(ols_est,tsls_est,ols_est,ols_est,
        )
 
 #### plm 
-# stargazer(plm_ols,plm_tsls,
-#           type='latex',digits=3, column.sep.width = "5pt",
-#           title='Main Results')
+stargazer(t,t,t,t,t,t,
+          keep = c(1,2),
+          type='latex',digits=3, column.sep.width = "5pt",
+          title='Main Results')
 
 
 ### Graphs ----
