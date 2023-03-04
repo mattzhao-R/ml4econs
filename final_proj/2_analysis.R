@@ -230,14 +230,14 @@ ols_est <- feols(
   data = df
 )
 
-#### plm 
-ols_plm_fm <- 'lsales ~ lprice'
-plm_ols <- plm(
-  formula = as.formula(ols_plm_fm),
-  data = df,
-  effect = 'twoways',
-  model = 'random'
-)
+# #### plm 
+# ols_plm_fm <- 'lsales ~ lprice'
+# plm_ols <- plm(
+#   formula = as.formula(ols_plm_fm),
+#   data = df,
+#   effect = 'twoways',
+#   model = 'random'
+# )
 
 ### TSLS ----
 #### fixest 
@@ -263,27 +263,28 @@ tsls_est <- feols(
 ### jive ----
 # from estimators script
 ## manually demeaning variables for FE-IV
-noint_df <- df %>%
-  select(county,time,lprice,lsales,
-         matches("aftexpl.dist_to_ref\\d+"))
-cnty_means <- noint_df %>%
-  group_by(time) %>%
-  summarise(across(!county,mean), .groups='keep')
-temp <- left_join(noint_df,cnty_means, by = 'time',
-                 suffix = c('','_means'))
-p_temp <- temp %>%
-  select(!contains('_means'))
-for (col in colnames(temp)) {
-  if ((col != 'county') & (col != 'time') & (!str_detect(col,'_means'))){
-    p_temp[,col] <- 
-      (temp %>% select(all_of(col))) - (temp %>% select(contains(paste0(col,'_means'))))
-  }
-}
-partialled_df <- bind_cols(
-  p_temp,
-  df %>% select(contains('timefe_'))
-)
+# noint_df <- df %>%
+#   select(county,time,lprice,lsales,
+#          matches("aftexpl.dist_to_ref\\d+"))
+# cnty_means <- noint_df %>%
+#   group_by(time) %>%
+#   summarise(across(!county,mean), .groups='keep')
+# temp <- left_join(noint_df,cnty_means, by = 'time',
+#                  suffix = c('','_means'))
+# p_temp <- temp %>%
+#   select(!contains('_means'))
+# for (col in colnames(temp)) {
+#   if ((col != 'county') & (col != 'time') & (!str_detect(col,'_means'))){
+#     p_temp[,col] <- 
+#       (temp %>% select(all_of(col))) - (temp %>% select(contains(paste0(col,'_means'))))
+#   }
+# }
+# partialled_df <- bind_cols(
+#   p_temp,
+#   df %>% select(contains('timefe_'))
+# )
 # write.csv(partialled_df,file.path(ddir,'partialled_noint.csv'))
+partialled_df <- read.csv(file.path(ddir,'partialled_noint.csv'))
 
 y <- data.matrix(partialled_df$lsales)
 n <- length(y)
@@ -323,6 +324,7 @@ z <- data.matrix(
 rjive_results = RJIVE_function(y,x,z,df)
 
 ### Post Lasso ----
+partialled_df <- read.csv(file.path(ddir,'partialled_noint.csv'))
 y <- data.matrix(partialled_df$lsales)
 n <- length(y)
 d <- data.matrix(
